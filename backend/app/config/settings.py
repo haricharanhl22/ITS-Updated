@@ -7,5 +7,10 @@ class Settings(BaseSettings):
     app_name: str = "HCAI-ITS"
     debug: bool = False
 
+    # JWT settings
+    secret_key: str = "supersecretjwtkey_change_this_in_production_32chars"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+
 
 settings = Settings()
