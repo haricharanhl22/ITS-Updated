@@ -5,8 +5,16 @@ from app.application.auth_service import (
     authenticate_user,
     get_current_user_from_token,
     register_user,
+    verify_otp_and_login,
 )
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    OtpVerifyRequest,
+    RegisterRequest,
+    RegisterResponse,
+    TokenResponse,
+    UserOut,
+)
 
 router = APIRouter(tags=["auth"])
 
@@ -43,13 +51,22 @@ def token(form: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
 
-# ── Register ───────────────────────────────────────────────────────────────
-@router.post("/auth/register", response_model=TokenResponse, status_code=201)
+# ── Register → sends OTP, does NOT return a token yet ─────────────────────
+@router.post("/auth/register", response_model=RegisterResponse, status_code=201)
 def register(req: RegisterRequest):
     try:
         return register_user(req)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
+
+# ── Verify OTP → marks user verified + returns JWT ─────────────────────────
+@router.post("/auth/verify-otp", response_model=TokenResponse)
+def verify_otp(req: OtpVerifyRequest):
+    try:
+        return verify_otp_and_login(req)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 # ── Get current user ───────────────────────────────────────────────────────
@@ -61,12 +78,11 @@ def me(current_user=Depends(_get_current_user)):
         email=current_user.email,
         role=current_user.role,
         is_active=current_user.is_active,
+        is_verified=current_user.is_verified,
     )
 
 
-# ── Logout (client-side token discard; endpoint for audit logging) ─────────
+# ── Logout ─────────────────────────────────────────────────────────────────
 @router.post("/auth/logout")
 def logout(current_user=Depends(_get_current_user)):
-    # JWT is stateless — actual invalidation happens on the client by removing the token.
-    # Extend here with a token blacklist if needed.
     return {"message": f"User '{current_user.username}' logged out successfully"}

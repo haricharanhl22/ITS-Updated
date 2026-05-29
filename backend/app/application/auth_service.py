@@ -2,14 +2,18 @@ from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
 
+from app.application.email_service import send_otp_email
 from app.config.settings import settings
 from app.domain.user import User
+from app.infrastructure.otp_repository import create_otp, verify_otp
 from app.infrastructure.user_repository import (
     create_user,
+    get_user_by_email,
     get_user_by_username,
+    mark_user_verified,
     verify_password,
 )
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import LoginRequest, OtpVerifyRequest, RegisterRequest, TokenResponse
 
 
 def _create_access_token(data: dict) -> str:
@@ -22,11 +26,14 @@ def _create_access_token(data: dict) -> str:
 
 
 def authenticate_user(req: LoginRequest) -> TokenResponse:
-    user = get_user_by_username(req.username)
+    # Accept username OR email
+    user = get_user_by_username(req.username) or get_user_by_email(req.username)
     if not user or not verify_password(req.password, user.hashed_password):
         raise ValueError("Invalid username or password")
     if not user.is_active:
         raise ValueError("Account is disabled")
+    if not user.is_verified:
+        raise ValueError("Please verify your email before logging in")
 
     token = _create_access_token(
         {"sub": user.username, "role": user.role, "id": user.id}
@@ -39,13 +46,30 @@ def authenticate_user(req: LoginRequest) -> TokenResponse:
     )
 
 
-def register_user(req: RegisterRequest) -> TokenResponse:
+def register_user(req: RegisterRequest) -> dict:
+    """Create user (unverified) and send OTP email. Returns email for OTP step."""
     user = create_user(
         username=req.username,
         email=req.email,
         password=req.password,
         role=req.role,
     )
+    otp = create_otp(user.email)
+    send_otp_email(user.email, otp)
+    return {"message": "OTP sent to your email. Please verify to continue.", "email": user.email}
+
+
+def verify_otp_and_login(req: OtpVerifyRequest) -> TokenResponse:
+    """Verify OTP, mark user as verified, and return JWT token."""
+    if not verify_otp(req.email, req.otp):
+        raise ValueError("Invalid or expired OTP")
+
+    mark_user_verified(req.email)
+
+    user = get_user_by_email(req.email)
+    if not user:
+        raise ValueError("User not found")
+
     token = _create_access_token(
         {"sub": user.username, "role": user.role, "id": user.id}
     )
@@ -76,24 +100,3 @@ def get_current_user_from_token(token: str) -> User:
     if not user:
         raise ValueError("User not found")
     return user
-from app.config.supabase_client import supabase
-
-
-def register_user(email: str, password: str):
-
-    response = supabase.auth.sign_up({
-        "email": email,
-        "password": password
-    })
-
-    return response
-
-
-def login_user(email: str, password: str):
-
-    response = supabase.auth.sign_in_with_password({
-        "email": email,
-        "password": password
-    })
-
-    return response

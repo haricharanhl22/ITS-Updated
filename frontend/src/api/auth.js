@@ -14,7 +14,12 @@ export async function apiRegister(username, email, password, role = 'student') {
     password,
     role,
   })
-  return data
+  return data   // { message, email }
+}
+
+export async function apiVerifyOtp(email, otp) {
+  const { data } = await axios.post(`${API_BASE}/verify-otp`, { email, otp })
+  return data   // TokenResponse
 }
 
 export async function apiMe(token) {

@@ -12,5 +12,12 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
+    # Supabase settings
+    supabase_url: str = ""
+    supabase_key: str = ""
+
+    # Resend email settings
+    resend_api_key: str = ""
+
 
 settings = Settings()

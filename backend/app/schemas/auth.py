@@ -13,11 +13,21 @@ class RegisterRequest(BaseModel):
     role: str = "student"
 
 
+class OtpVerifyRequest(BaseModel):
+    email: str
+    otp: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     username: str
     role: str
+
+
+class RegisterResponse(BaseModel):
+    message: str
+    email: str
 
 
 class UserOut(BaseModel):
@@ -26,3 +36,4 @@ class UserOut(BaseModel):
     email: str
     role: str
     is_active: bool
+    is_verified: bool
