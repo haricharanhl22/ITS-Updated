@@ -19,5 +19,13 @@ class Settings(BaseSettings):
     # Resend email settings
     resend_api_key: str = ""
 
+    # SMTP settings (e.g. Gmail, Brevo SMTP)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_from_name: str = "HCAI-ITS Support"
+
 
 settings = Settings()
