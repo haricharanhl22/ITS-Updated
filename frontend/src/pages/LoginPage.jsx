@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false)
 
   // OTP verification state
-  const [otpStep, setOtpStep] = useState(false)   // true = show OTP screen
+  const [otpStep, setOtpStep] = useState(false)
   const [pendingEmail, setPendingEmail] = useState('')
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', ''])
   const otpRefs = useRef([])
@@ -43,8 +43,7 @@ export default function LoginPage() {
       login(tokenData.access_token, userData)
       navigate(from, { replace: true })
     } catch (err) {
-      const msg = err?.response?.data?.detail
-      setError(msg ?? 'Invalid credentials. Please try again.')
+      setError(err?.response?.data?.detail ?? 'Invalid credentials. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -68,28 +67,23 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const res = await apiRegister(regForm.username, regForm.email, regForm.password, 'student')
-      // Backend now sends OTP email instead of a token
       setPendingEmail(res.email)
       setOtpDigits(['', '', '', '', '', ''])
       setOtpStep(true)
       setError('')
     } catch (err) {
-      const msg = err?.response?.data?.detail
-      setError(msg ?? 'Registration failed. Please try again.')
+      setError(err?.response?.data?.detail ?? 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // OTP digit input handlers
   const handleOtpChange = (index, value) => {
     if (!/^\d?$/.test(value)) return
     const next = [...otpDigits]
     next[index] = value
     setOtpDigits(next)
-    if (value && index < 5) {
-      otpRefs.current[index + 1]?.focus()
-    }
+    if (value && index < 5) otpRefs.current[index + 1]?.focus()
   }
 
   const handleOtpKeyDown = (index, e) => {
@@ -122,8 +116,7 @@ export default function LoginPage() {
       login(tokenData.access_token, userData)
       navigate(from, { replace: true })
     } catch (err) {
-      const msg = err?.response?.data?.detail
-      setError(msg ?? 'Invalid or expired OTP. Please try again.')
+      setError(err?.response?.data?.detail ?? 'Invalid or expired OTP. Please try again.')
       setOtpDigits(['', '', '', '', '', ''])
       otpRefs.current[0]?.focus()
     } finally {
@@ -131,37 +124,25 @@ export default function LoginPage() {
     }
   }
 
-  const demoAccounts = [
-    { label: 'Admin', username: 'admin', password: 'admin123', badge: 'admin' },
-    { label: 'Student', username: 'student', password: 'student123', badge: 'student' },
-  ]
-
-  const fillDemo = (d) => {
-    setTab('login')
-    setOtpStep(false)
-    setLoginForm({ username: d.username, password: d.password })
-    setError('')
-  }
-
-  // ── OTP VERIFICATION SCREEN ──────────────────────────────────────────────
+  // ── OTP SCREEN ────────────────────────────────────────────────────────────
   if (otpStep) {
     return (
       <div className="login-page">
-        <div className="orb orb-1" />
-        <div className="orb orb-2" />
-        <div className="orb orb-3" />
+        <div className="login-brand">
+          <div className="login-logo-ring">🎓</div>
+          <span className="login-app-name">HCAI-ITS</span>
+        </div>
 
         <div className="login-container animate-fade-in-up">
-          <div className="login-header">
-            <div className="logo-wrap">
-              <div className="logo-icon">✉️</div>
-            </div>
-            <p className="login-subtitle">Check your email</p>
-          </div>
-
-          <div style={{ textAlign: 'center', marginBottom: '1.5rem', color: 'var(--text-muted, #9ca3af)', fontSize: '0.9rem' }}>
-            We sent a 6-digit code to<br />
-            <strong style={{ color: 'var(--text, #e5e7eb)' }}>{pendingEmail}</strong>
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>✉️</div>
+            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text)', marginBottom: '8px' }}>
+              Check your email
+            </h2>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              We sent a 6-digit code to<br />
+              <strong style={{ color: 'var(--indigo-light)' }}>{pendingEmail}</strong>
+            </p>
           </div>
 
           {error && (
@@ -172,7 +153,7 @@ export default function LoginPage() {
 
           <form id="otp-form" onSubmit={handleVerifyOtp} className="auth-form animate-fade-in">
             {/* 6-digit OTP boxes */}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '8px' }}>
               {otpDigits.map((digit, i) => (
                 <input
                   key={i}
@@ -188,16 +169,18 @@ export default function LoginPage() {
                   disabled={loading}
                   style={{
                     width: '48px',
-                    height: '56px',
+                    height: '58px',
                     textAlign: 'center',
-                    fontSize: '1.5rem',
-                    fontWeight: 'bold',
-                    borderRadius: '10px',
-                    border: '2px solid var(--border, rgba(255,255,255,0.12))',
-                    background: 'var(--input-bg, rgba(255,255,255,0.07))',
-                    color: 'var(--text, #e5e7eb)',
+                    fontSize: '1.6rem',
+                    fontWeight: 800,
+                    fontFamily: 'var(--font)',
+                    borderRadius: '14px',
+                    border: `2px solid ${digit ? 'var(--indigo)' : 'var(--border)'}`,
+                    background: digit ? 'var(--indigo-subtle)' : 'var(--bg)',
+                    color: 'var(--text)',
                     outline: 'none',
-                    transition: 'border-color 0.2s',
+                    transition: 'all var(--ease)',
+                    boxShadow: digit ? '0 0 0 4px var(--indigo-subtle)' : 'none',
                   }}
                 />
               ))}
@@ -206,18 +189,22 @@ export default function LoginPage() {
             <button
               id="btn-verify-otp"
               type="submit"
-              className="btn btn-primary btn-full btn-lg"
+              className="btn btn-primary btn-full btn-lg btn-submit"
               disabled={loading || otpDigits.join('').length !== 6}
             >
-              {loading ? <span className="spinner" /> : ''}
-              {loading ? 'Verifying…' : 'Verify & Continue'}
+              {loading ? <span className="spinner" /> : null}
+              {loading ? 'Verifying…' : 'Verify & Continue →'}
             </button>
           </form>
 
-          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <div style={{ textAlign: 'center', marginTop: '20px' }}>
             <button
               type="button"
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9ca3af)', cursor: 'pointer', fontSize: '0.85rem' }}
+              style={{
+                background: 'none', border: 'none',
+                color: 'var(--text-muted)', cursor: 'pointer',
+                fontSize: '0.85rem', fontFamily: 'var(--font)',
+              }}
               onClick={() => { setOtpStep(false); setTab('register'); setError('') }}
             >
               ← Back to registration
@@ -231,20 +218,14 @@ export default function LoginPage() {
   // ── MAIN LOGIN / REGISTER SCREEN ─────────────────────────────────────────
   return (
     <div className="login-page">
-      {/* Decorative background orbs */}
-      <div className="orb orb-1" />
-      <div className="orb orb-2" />
-      <div className="orb orb-3" />
+      {/* Brand */}
+      <div className="login-brand animate-fade-in">
+        <div className="login-logo-ring">🎓</div>
+        <span className="login-app-name">HCAI-ITS</span>
+        <span className="login-tagline">Intelligent Tutoring System</span>
+      </div>
 
       <div className="login-container animate-fade-in-up">
-
-        {/* Header */}
-        <div className="login-header">
-          <div className="logo-wrap">
-            <div className="logo-icon">🎓</div>
-          </div>
-          <p className="login-subtitle">Intelligent Tutoring System</p>
-        </div>
 
         {/* Tabs */}
         <div className="tab-bar" role="tablist">
@@ -324,11 +305,11 @@ export default function LoginPage() {
             <button
               id="btn-login"
               type="submit"
-              className="btn btn-primary btn-full btn-lg"
+              className="btn btn-primary btn-full btn-lg btn-submit"
               disabled={loading}
             >
-              {loading ? <span className="spinner" /> : ''}
-              {loading ? 'Signing in…' : 'Sign In'}
+              {loading ? <span className="spinner" /> : null}
+              {loading ? 'Signing in…' : 'Sign In →'}
             </button>
           </form>
         )}
@@ -415,35 +396,50 @@ export default function LoginPage() {
             <button
               id="btn-register"
               type="submit"
-              className="btn btn-primary btn-full btn-lg"
+              className="btn btn-primary btn-full btn-lg btn-submit"
               disabled={loading}
             >
-              {loading ? <span className="spinner" /> : ''}
-              {loading ? 'Creating account…' : 'Create Account'}
+              {loading ? <span className="spinner" /> : null}
+              {loading ? 'Creating account…' : 'Create Account →'}
             </button>
           </form>
         )}
 
         {/* Demo Accounts */}
+        <div className="login-divider">
+          <div className="login-divider-line" />
+          <span className="login-divider-text">Quick Demo</span>
+          <div className="login-divider-line" />
+        </div>
+
         <div className="demo-section">
-          <p className="demo-label">Quick demo access</p>
           <div className="demo-grid">
-            {demoAccounts.map(d => (
+            {[
+              { label: 'Admin', username: 'admin', password: 'admin123', badge: 'admin' },
+              { label: 'Student', username: 'student', password: 'student123', badge: 'student' },
+            ].map(d => (
               <button
                 key={d.label}
                 id={`demo-${d.badge}`}
                 type="button"
                 className={`demo-btn badge-${d.badge}`}
-                onClick={() => fillDemo(d)}
-                title={`Login as ${d.label}`}
+                onClick={() => {
+                  setTab('login')
+                  setOtpStep(false)
+                  setLoginForm({ username: d.username, password: d.password })
+                  setError('')
+                }}
               >
-                <span className={`badge badge-${d.badge}`}>{d.label}</span>
+                {d.label}
               </button>
             ))}
           </div>
         </div>
-
       </div>
+
+      <p className="login-footer-note">
+        HCAI Intelligent Tutoring System · v1.0
+      </p>
     </div>
   )
 }
