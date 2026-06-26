@@ -1,0 +1,275 @@
+/* ============================================================
+   PDFUploader.css — Drag-and-drop PDF ingestion widget
+   ============================================================ */
+
+.uploader-root {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Header ── */
+.uploader-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.uploader-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.uploader-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.uploader-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Drop zone ── */
+.uploader-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--r-md);
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--ease);
+  background: var(--bg-card);
+  min-height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.uploader-dropzone:hover {
+  border-color: var(--indigo);
+  background: var(--indigo-subtle);
+}
+
+.uploader-dropzone.dragging {
+  border-color: var(--indigo-light);
+  background: var(--indigo-subtle);
+  box-shadow: 0 0 0 4px var(--indigo-subtle);
+  transform: scale(1.01);
+}
+
+.uploader-dropzone.has-file {
+  border-style: solid;
+  border-color: rgba(124, 58, 237, 0.4);
+  cursor: default;
+  padding: 14px 16px;
+}
+
+/* ── Placeholder text ── */
+.uploader-drop-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.uploader-drop-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-subtle);
+}
+
+.uploader-drop-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ── Selected file row ── */
+.uploader-file-selected {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.uploader-file-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.uploader-file-info {
+  flex: 1;
+  text-align: left;
+  min-width: 0;
+}
+
+.uploader-file-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uploader-file-size {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.uploader-remove-btn {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--ease);
+}
+
+.uploader-remove-btn:hover {
+  background: var(--red-subtle);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+/* ── Error ── */
+.uploader-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--red-subtle);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--r-md);
+  color: #fca5a5;
+  font-size: 0.83rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* ── Progress bar ── */
+.uploader-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.uploader-progress-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-subtle);
+  font-weight: 500;
+}
+
+.uploader-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(124, 58, 237, 0.25);
+  border-top-color: var(--indigo);
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+.uploader-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-surface-2);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+
+.uploader-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--indigo), var(--purple));
+  border-radius: var(--r-pill);
+  box-shadow: 0 0 8px var(--indigo-glow);
+}
+
+.uploader-progress-pct {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* ── Success result ── */
+.uploader-result {
+  background: var(--green-subtle);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: var(--r-md);
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.uploader-result-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.uploader-result-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.uploader-result-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--green);
+  margin-bottom: 4px;
+}
+
+.uploader-result-message {
+  font-size: 0.78rem;
+  color: var(--text-subtle);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.uploader-result-stats {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.uploader-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.uploader-stat-val {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+}
+
+.uploader-stat-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+/* ── Submit button ── */
+.uploader-submit {
+  margin-top: 2px;
+}

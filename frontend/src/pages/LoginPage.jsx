@@ -1,11 +1,9 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { apiLogin, apiMe, apiRegister, apiVerifyOtp } from '../api/auth'
-import { useAuth } from '../context/AuthContext'
+import { supabase } from '../api/supabaseClient'
 import './LoginPage.css'
 
 export default function LoginPage() {
-  const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const from = location.state?.from?.pathname ?? '/dashboard'
@@ -15,35 +13,29 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [showPass, setShowPass] = useState(false)
 
-  // OTP verification state
-  const [otpStep, setOtpStep] = useState(false)
-  const [pendingEmail, setPendingEmail] = useState('')
-  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', ''])
-  const otpRefs = useRef([])
-
   // Login form state
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' })
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' })
 
   // Register form state
-  const [regForm, setRegForm] = useState({
-    username: '', email: '', password: '', confirm: '',
-  })
+  const [regForm, setRegForm] = useState({ email: '', password: '', confirm: '' })
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
-    if (!loginForm.username || !loginForm.password) {
+    if (!loginForm.email || !loginForm.password) {
       setError('Please fill in all fields.')
       return
     }
     setLoading(true)
     try {
-      const tokenData = await apiLogin(loginForm.username, loginForm.password)
-      const userData  = await apiMe(tokenData.access_token)
-      login(tokenData.access_token, userData)
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginForm.email,
+        password: loginForm.password,
+      })
+      if (signInError) throw signInError
       navigate(from, { replace: true })
     } catch (err) {
-      setError(err?.response?.data?.detail ?? 'Invalid credentials. Please try again.')
+      setError(err.message || 'Invalid credentials. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -52,7 +44,7 @@ export default function LoginPage() {
   const handleRegister = async (e) => {
     e.preventDefault()
     setError('')
-    if (!regForm.username || !regForm.email || !regForm.password) {
+    if (!regForm.email || !regForm.password) {
       setError('Please fill in all fields.')
       return
     }
@@ -66,156 +58,21 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      const res = await apiRegister(regForm.username, regForm.email, regForm.password, 'student')
-      setPendingEmail(res.email)
-      setOtpDigits(['', '', '', '', '', ''])
-      setOtpStep(true)
-      setError('')
-    } catch (err) {
-      setError(err?.response?.data?.detail ?? 'Registration failed. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleOtpChange = (index, value) => {
-    if (!/^\d?$/.test(value)) return
-    const next = [...otpDigits]
-    next[index] = value
-    setOtpDigits(next)
-    if (value && index < 5) otpRefs.current[index + 1]?.focus()
-  }
-
-  const handleOtpKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus()
-    }
-  }
-
-  const handleOtpPaste = (e) => {
-    e.preventDefault()
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-    const next = [...otpDigits]
-    for (let i = 0; i < 6; i++) next[i] = pasted[i] ?? ''
-    setOtpDigits(next)
-    otpRefs.current[Math.min(pasted.length, 5)]?.focus()
-  }
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault()
-    setError('')
-    const otp = otpDigits.join('')
-    if (otp.length !== 6) {
-      setError('Please enter the full 6-digit code.')
-      return
-    }
-    setLoading(true)
-    try {
-      const tokenData = await apiVerifyOtp(pendingEmail, otp)
-      const userData  = await apiMe(tokenData.access_token)
-      login(tokenData.access_token, userData)
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: regForm.email,
+        password: regForm.password,
+      })
+      if (signUpError) throw signUpError
+      // For Supabase, if email confirmation is disabled, user is logged in automatically.
+      // If enabled, they will need to check their email. For this patch, we assume success routes to dashboard.
       navigate(from, { replace: true })
     } catch (err) {
-      setError(err?.response?.data?.detail ?? 'Invalid or expired OTP. Please try again.')
-      setOtpDigits(['', '', '', '', '', ''])
-      otpRefs.current[0]?.focus()
+      setError(err.message || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // ── OTP SCREEN ────────────────────────────────────────────────────────────
-  if (otpStep) {
-    return (
-      <div className="login-page">
-        <div className="login-brand">
-          <div className="login-logo-ring">🎓</div>
-          <span className="login-app-name">HCAI-ITS</span>
-        </div>
-
-        <div className="login-container animate-fade-in-up">
-          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-            <div style={{ fontSize: '40px', marginBottom: '12px' }}>✉️</div>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text)', marginBottom: '8px' }}>
-              Check your email
-            </h2>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              We sent a 6-digit code to<br />
-              <strong style={{ color: 'var(--indigo-light)' }}>{pendingEmail}</strong>
-            </p>
-          </div>
-
-          {error && (
-            <div className="alert-error animate-fade-in" role="alert">
-              <span>⚠</span> {error}
-            </div>
-          )}
-
-          <form id="otp-form" onSubmit={handleVerifyOtp} className="auth-form animate-fade-in">
-            {/* 6-digit OTP boxes */}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '8px' }}>
-              {otpDigits.map((digit, i) => (
-                <input
-                  key={i}
-                  ref={el => otpRefs.current[i] = el}
-                  id={`otp-digit-${i}`}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={e => handleOtpChange(i, e.target.value)}
-                  onKeyDown={e => handleOtpKeyDown(i, e)}
-                  onPaste={i === 0 ? handleOtpPaste : undefined}
-                  disabled={loading}
-                  style={{
-                    width: '48px',
-                    height: '58px',
-                    textAlign: 'center',
-                    fontSize: '1.6rem',
-                    fontWeight: 800,
-                    fontFamily: 'var(--font)',
-                    borderRadius: '14px',
-                    border: `2px solid ${digit ? 'var(--indigo)' : 'var(--border)'}`,
-                    background: digit ? 'var(--indigo-subtle)' : 'var(--bg)',
-                    color: 'var(--text)',
-                    outline: 'none',
-                    transition: 'all var(--ease)',
-                    boxShadow: digit ? '0 0 0 4px var(--indigo-subtle)' : 'none',
-                  }}
-                />
-              ))}
-            </div>
-
-            <button
-              id="btn-verify-otp"
-              type="submit"
-              className="btn btn-primary btn-full btn-lg btn-submit"
-              disabled={loading || otpDigits.join('').length !== 6}
-            >
-              {loading ? <span className="spinner" /> : null}
-              {loading ? 'Verifying…' : 'Verify & Continue →'}
-            </button>
-          </form>
-
-          <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <button
-              type="button"
-              style={{
-                background: 'none', border: 'none',
-                color: 'var(--text-muted)', cursor: 'pointer',
-                fontSize: '0.85rem', fontFamily: 'var(--font)',
-              }}
-              onClick={() => { setOtpStep(false); setTab('register'); setError('') }}
-            >
-              ← Back to registration
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ── MAIN LOGIN / REGISTER SCREEN ─────────────────────────────────────────
   return (
     <div className="login-page">
       {/* Brand */}
@@ -261,17 +118,17 @@ export default function LoginPage() {
         {tab === 'login' && (
           <form id="login-form" onSubmit={handleLogin} className="auth-form animate-fade-in">
             <div className="form-group">
-              <label className="form-label" htmlFor="login-username">Username or Email</label>
+              <label className="form-label" htmlFor="login-email">Email</label>
               <div className="input-wrap">
-                <span className="input-icon">👤</span>
+                <span className="input-icon">✉</span>
                 <input
-                  id="login-username"
-                  type="text"
+                  id="login-email"
+                  type="email"
                   className="input-field with-icon"
-                  placeholder="Enter username or email"
-                  autoComplete="username"
-                  value={loginForm.username}
-                  onChange={e => setLoginForm(f => ({ ...f, username: e.target.value }))}
+                  placeholder="your@email.com"
+                  autoComplete="email"
+                  value={loginForm.email}
+                  onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))}
                   disabled={loading}
                 />
               </div>
@@ -317,23 +174,6 @@ export default function LoginPage() {
         {/* ── REGISTER FORM ── */}
         {tab === 'register' && (
           <form id="register-form" onSubmit={handleRegister} className="auth-form animate-fade-in">
-            <div className="form-group">
-              <label className="form-label" htmlFor="reg-username">Username</label>
-              <div className="input-wrap">
-                <span className="input-icon">👤</span>
-                <input
-                  id="reg-username"
-                  type="text"
-                  className="input-field with-icon"
-                  placeholder="Choose a username"
-                  autoComplete="username"
-                  value={regForm.username}
-                  onChange={e => setRegForm(f => ({ ...f, username: e.target.value }))}
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
             <div className="form-group">
               <label className="form-label" htmlFor="reg-email">Email</label>
               <div className="input-wrap">
@@ -404,37 +244,6 @@ export default function LoginPage() {
             </button>
           </form>
         )}
-
-        {/* Demo Accounts */}
-        <div className="login-divider">
-          <div className="login-divider-line" />
-          <span className="login-divider-text">Quick Demo</span>
-          <div className="login-divider-line" />
-        </div>
-
-        <div className="demo-section">
-          <div className="demo-grid">
-            {[
-              { label: 'Admin', username: 'admin', password: 'admin123', badge: 'admin' },
-              { label: 'Student', username: 'student', password: 'student123', badge: 'student' },
-            ].map(d => (
-              <button
-                key={d.label}
-                id={`demo-${d.badge}`}
-                type="button"
-                className={`demo-btn badge-${d.badge}`}
-                onClick={() => {
-                  setTab('login')
-                  setOtpStep(false)
-                  setLoginForm({ username: d.username, password: d.password })
-                  setError('')
-                }}
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       <p className="login-footer-note">

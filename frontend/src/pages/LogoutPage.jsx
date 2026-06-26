@@ -52,7 +52,7 @@ export default function LogoutPage() {
 
         <h1 className="logout-title">Signing out</h1>
         <p className="logout-user">
-          Goodbye, <span className="username-highlight">{user?.username}</span>!
+          Goodbye, <span className="username-highlight">{user?.email?.split('@')[0] || 'User'}</span>!
         </p>
         <p className="logout-sub">You will be signed out automatically in:</p>
 
@@ -98,7 +98,7 @@ export default function LogoutPage() {
         <div className="session-info">
           <div className="session-row">
             <span className="session-key">Role</span>
-            <span className={`badge badge-${user?.role}`}>{user?.role}</span>
+            <span className={`badge badge-student`}>Student</span>
           </div>
           <div className="session-row">
             <span className="session-key">Email</span>

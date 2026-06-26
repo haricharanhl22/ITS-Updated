@@ -58,10 +58,7 @@ def send_otp_email(to_email: str, otp: str) -> None:
                 msg.as_string()
             )
 
-        print(f"📧 [SMTP] Verification email successfully sent to {to_email}")
+        print(f"[SMTP] OK: Verification email sent to {to_email}")
     except Exception as e:
-        print(f"❌ [SMTP] Delivery failed to {to_email}. Error: {e}")
+        print(f"[SMTP] ERROR: Delivery failed to {to_email}. Error: {e}")
         raise ValueError(f"Failed to send email verification: {e}")
-
-
-

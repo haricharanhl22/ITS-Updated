@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     # Supabase settings
     supabase_url: str = ""
     supabase_key: str = ""
+    supabase_service_key: str = ""  # service_role key — bypasses RLS (for seed scripts)
+
+    # Groq LLM settings
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
 
     # Resend email settings
     resend_api_key: str = ""

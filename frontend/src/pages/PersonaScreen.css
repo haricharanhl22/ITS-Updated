@@ -1,0 +1,221 @@
+.persona-screen {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background orbs */
+.persona-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  animation: float 8s ease-in-out infinite;
+}
+.persona-orb-1 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(124,58,237,0.18), transparent);
+  top: -150px; left: -100px;
+  animation-delay: 0s;
+}
+.persona-orb-2 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(6,182,212,0.12), transparent);
+  bottom: -100px; right: -80px;
+  animation-delay: 3s;
+}
+.persona-orb-3 {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(168,85,247,0.10), transparent);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  animation-delay: 6s;
+}
+
+.persona-content {
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Header */
+.persona-header { text-align: center; }
+
+.persona-logo {
+  width: 72px; height: 72px;
+  background: linear-gradient(135deg, var(--indigo), var(--purple));
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  box-shadow: 0 0 40px var(--indigo-glow);
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+.persona-logo-icon { font-size: 36px; }
+
+.persona-title {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.persona-subtitle {
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  max-width: 460px;
+}
+
+/* Cards grid */
+.persona-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  width: 100%;
+}
+
+@media (max-width: 800px) {
+  .persona-cards { grid-template-columns: 1fr; max-width: 400px; }
+}
+
+/* Individual card */
+.persona-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 24px 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1),
+              border-color 0.2s,
+              box-shadow 0.3s;
+  text-align: center;
+  font-family: var(--font);
+}
+
+.persona-card:hover,
+.persona-card.hovered {
+  transform: translateY(-6px) scale(1.02);
+  border-color: var(--card-color);
+  box-shadow: 0 16px 48px var(--card-glow);
+}
+
+.persona-card:disabled { opacity: 0.75; cursor: not-allowed; transform: none; }
+
+/* Glow border shimmer */
+.persona-card-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 0%, var(--card-color) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  z-index: 0;
+}
+.persona-card.hovered .persona-card-glow { opacity: 0.06; }
+
+/* Avatar */
+.persona-avatar {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.persona-avatar-emoji { font-size: 34px; line-height: 1; }
+
+/* Info */
+.persona-info { position: relative; z-index: 1; }
+
+.persona-name {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.persona-tagline {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 4px 0 8px;
+}
+
+.persona-desc {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+/* Mastery preview rings */
+.persona-mastery-preview {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.persona-mastery-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.persona-mastery-concept {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
+/* CTA button (at the bottom of the card) */
+.persona-cta {
+  width: calc(100% + 48px);
+  margin-top: 4px;
+  padding: 14px;
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: filter 0.2s;
+}
+.persona-card:hover .persona-cta { filter: brightness(1.1); }
+
+/* Error + footer */
+.persona-error { max-width: 600px; text-align: center; }
+
+.persona-footer {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+}

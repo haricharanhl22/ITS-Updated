@@ -3,10 +3,9 @@ import './BottomNav.css'
 
 const TABS = [
   { id: 'home',     icon: '🏠', label: 'Home',     path: '/dashboard' },
-  { id: 'courses',  icon: '📚', label: 'Courses',  path: '/courses'   },
-  { id: 'progress', icon: '📊', label: 'Progress', path: '/progress'  },
-  { id: 'ai',       icon: '🤖', label: 'AI Tutor', path: '/ai-tutor'  },
-  { id: 'profile',  icon: '👤', label: 'Profile',  path: '/profile'   },
+  { id: 'chat',     icon: '🤖', label: 'AI Tutor', path: '/chat'      },
+  { id: 'progress', icon: '📊', label: 'Progress', path: '/dashboard' },
+  { id: 'profile',  icon: '👤', label: 'Profile',  path: '/logout'    },
 ]
 
 export default function BottomNav({ activeTab = 'home' }) {

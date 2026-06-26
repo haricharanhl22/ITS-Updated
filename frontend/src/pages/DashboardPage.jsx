@@ -1,181 +1,440 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import BottomNav from '../components/BottomNav'
+import { useMastery, CONCEPTS } from '../hooks/useMastery'
+import RadialProgress from '../components/RadialProgress'
+import Sparkline from '../components/Sparkline'
+import axios from 'axios'
 import './DashboardPage.css'
 
-const GOALS = [
-  { id: 1, title: 'Complete Python Basics lesson', sub: 'Lesson 3 of 5', xp: '+20 XP', done: true },
-  { id: 2, title: 'Solve 3 coding challenges', sub: 'Challenges', xp: '+30 XP', done: false },
-  { id: 3, title: 'Review AI Tutor feedback', sub: 'Personalised review', xp: '+10 XP', done: false },
-]
-
-const CODE_LINES = [
-  { ln: 1, tokens: [{ t: 'kw', v: 'def ' }, { t: 'fn', v: 'greet' }, { t: 'pn', v: '(name):' }] },
-  { ln: 2, tokens: [{ t: 'pn', v: '    ' }, { t: 'cm', v: '# Return a greeting message' }] },
-  { ln: 3, tokens: [{ t: 'pn', v: '    ' }, { t: 'kw', v: 'return ' }, { t: 'str', v: 'f"Hello, {name}!"' }] },
-  { ln: 4, tokens: [] },
-  { ln: 5, tokens: [{ t: 'fn', v: 'print' }, { t: 'pn', v: '(' }, { t: 'fn', v: 'greet' }, { t: 'pn', v: '(' }, { t: 'str', v: '"World"' }, { t: 'pn', v: '))' }] },
-]
-
-function getGreeting() {
-  const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
+const CONCEPT_EMOJI = {
+  'Variables': '📦', 'Functions': '⚙️', 'Loops': '🔁',
+  'OOP': '🏗️', 'Strings': '🔤', 'Lists': '📋',
+  'Dictionaries': '📖', 'Error Handling': '⚠️',
 }
 
-export default function DashboardPage() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const [goals, setGoals] = useState(GOALS)
+const TIERS = [
+  {
+    id: 1,
+    name: 'Tier 1: Foundations',
+    concepts: ['Variables', 'Strings', 'Lists'],
+    description: 'Learn the basic syntax and standard structures in Python.'
+  },
+  {
+    id: 2,
+    name: 'Tier 2: Control Flow & Structure',
+    concepts: ['Loops', 'Functions', 'Dictionaries'],
+    description: 'Structure logic and build reusable operations.'
+  },
+  {
+    id: 3,
+    name: 'Tier 3: Advanced Concepts',
+    concepts: ['OOP', 'Error Handling'],
+    description: 'Master classes, inheritance, and bulletproof applications.'
+  }
+]
 
-  const toggleGoal = (id) => {
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, done: !g.done } : g))
+export default function DashboardPage() {
+  const { token, user } = useAuth()
+  const { mastery, refreshMastery, getMasteryScore, getWeakestConcept } = useMastery()
+  const navigate = useNavigate()
+
+  const [events, setEvents] = useState([])
+  const [eventsLoading, setEventsLoading] = useState(true)
+  const [copiedId, setCopiedId] = useState(null)
+  const [toastMessage, setToastMessage] = useState('')
+
+  const fetchEvents = useCallback(async () => {
+    if (!user?.id || !token) return
+    try {
+      const { data } = await axios.get('/api/learning-events', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setEvents(data)
+    } catch { 
+      setEvents([]) 
+    } finally { 
+      setEventsLoading(false) 
+    }
+  }, [user?.id, token])
+
+  useEffect(() => {
+    refreshMastery()
+    fetchEvents()
+  }, [user?.id]) // eslint-disable-line
+
+  // Build sparkline data per concept from learning events
+  const sparklineData = (concept) => {
+    return events
+      .filter(e => e.concept_name === concept)
+      .map(e => parseFloat(e.score || 0))
   }
 
-  const completedGoals = goals.filter(g => g.done).length
+  const weakest = getWeakestConcept()
+
+  const greeting = () => {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good morning'
+    if (h < 17) return 'Good afternoon'
+    return 'Good evening'
+  }
+
+  const overallMastery = mastery.length
+    ? Math.round(mastery.reduce((a, m) => a + (m.score || 0), 0) / mastery.length * 100)
+    : 0
+
+  // 1. Streak Info Calculation
+  const getStreakInfo = () => {
+    const activeDates = new Set()
+    events.forEach(e => {
+      activeDates.add(new Date(e.created_at).toDateString())
+    })
+    
+    try {
+      const chatLog = JSON.parse(localStorage.getItem('hcai_chat_activity_log') || '[]')
+      chatLog.forEach(dateStr => activeDates.add(new Date(dateStr).toDateString()))
+    } catch (e) {}
+
+    const uniqueDates = Array.from(activeDates).map(d => new Date(d))
+    uniqueDates.sort((a, b) => b - a)
+
+    let streak = 0
+    let today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    let yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    yesterday.setHours(0, 0, 0, 0)
+
+    const hasActivity = (date) => {
+      return uniqueDates.some(d => d.toDateString() === date.toDateString())
+    }
+
+    if (hasActivity(today) || hasActivity(yesterday)) {
+      let current = hasActivity(today) ? today : yesterday
+      streak = 1
+      while (true) {
+        let prev = new Date(current)
+        prev.setDate(prev.getDate() - 1)
+        if (hasActivity(prev)) {
+          streak++
+          current = prev
+        } else {
+          break
+        }
+      }
+    }
+    
+    // Build weekly activity starting from Monday of this week
+    const startOfWeek = new Date()
+    const dayOfWeek = startOfWeek.getDay() // 0 = Sun, 1 = Mon, etc.
+    const diff = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1) // adjust when day is Sunday
+    startOfWeek.setDate(diff)
+    startOfWeek.setHours(0, 0, 0, 0)
+
+    const weekly = []
+    const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek)
+      d.setDate(d.getDate() + i)
+      weekly.push({
+        dayOfWeek: days[i],
+        isActive: hasActivity(d)
+      })
+    }
+
+    return { streak, weekly }
+  }
+
+  const { streak, weekly } = getStreakInfo()
+
+  // 2. XP & Level System Calculation
+  const getXPInfo = () => {
+    const quizXP = events.reduce((sum, e) => sum + Math.round(parseFloat(e.score || 0) * 100), 0)
+    const masteryXP = mastery.filter(m => (m.score || 0) >= 0.7).length * 150
+    const questionCount = parseInt(localStorage.getItem('hcai_questions_asked') || '0', 10)
+    const chatXP = questionCount * 10
+    
+    const totalXP = quizXP + masteryXP + chatXP + 100 // +100 base signing up XP
+    const level = Math.floor(totalXP / 500) + 1
+    const xpInLevel = totalXP % 500
+    const xpNeeded = 500
+    
+    const titles = [
+      'Syntax Seeker',
+      'Variable Voyager',
+      'Function Finder',
+      'Loop Looker',
+      'List Leader',
+      'Logic Legend',
+      'Class Commander',
+      'Python Professor'
+    ]
+    const title = titles[Math.min(level - 1, titles.length - 1)]
+
+    return { totalXP, level, xpInLevel, xpNeeded, title }
+  }
+
+  const { totalXP, level, xpInLevel, xpNeeded, title } = getXPInfo()
+
+  // 3. Daily Goals Progress Calculation
+  const getDailyGoalProgress = () => {
+    const todayStr = new Date().toDateString()
+    const quizzesToday = events.filter(e => new Date(e.created_at).toDateString() === todayStr).length
+    const questionsToday = parseInt(localStorage.getItem(`hcai_questions_today_${todayStr}`) || '0', 10)
+    
+    // Complete 1 quiz or ask 3 questions
+    let progressPct = 0
+    if (quizzesToday >= 1) {
+      progressPct = 100
+    } else {
+      progressPct = Math.min(Math.round((questionsToday / 3) * 100), 100)
+    }
+
+    return {
+      progressPct,
+      description: quizzesToday >= 1 
+        ? 'Daily goal completed! You solved a Python quiz.' 
+        : `Daily Goal: Complete 1 quiz or ask 3 questions today. (${questionsToday}/3 questions)`
+    }
+  }
+
+  const { progressPct, description } = getDailyGoalProgress()
+
+  // 4. Lock Status based on Tier Prerequisites
+  const getTierLockStatus = (tierId) => {
+    if (tierId === 1) return false // Tier 1 always open
+    
+    const tier1Avg = (getMasteryScore('Variables') + getMasteryScore('Strings') + getMasteryScore('Lists')) / 3
+    if (tierId === 2) {
+      return tier1Avg < 30 && events.length === 0
+    }
+    
+    const tier2Avg = (getMasteryScore('Loops') + getMasteryScore('Functions') + getMasteryScore('Dictionaries')) / 3
+    if (tierId === 3) {
+      return tier1Avg < 30 || tier2Avg < 30
+    }
+    return false
+  }
+
+  const showNodeMessage = (concept, isLocked) => {
+    if (isLocked) {
+      setToastMessage(`🔒 Keep learning foundational Python basics to unlock ${concept}!`)
+      setTimeout(() => setToastMessage(''), 3000)
+    } else {
+      navigate(`/quiz/${encodeURIComponent(concept)}`)
+    }
+  }
 
   return (
-    <div className="dashboard-page">
-      {/* Bottom / Side navigation */}
-      <BottomNav activeTab="home" />
+    <div className="dash-page">
+      {/* Sidebar nav */}
+      <nav className="dash-sidenav">
+        <div className="dash-sidenav-logo">
+          <span>🎓</span>
+        </div>
+        <button className="dash-nav-btn active" onClick={() => navigate('/dashboard')} title="Dashboard">
+          <span>📊</span>
+        </button>
+        <button className="dash-nav-btn" onClick={() => navigate('/chat')} title="Tutor Chat">
+          <span>💬</span>
+        </button>
+        <div style={{ flex: 1 }} />
+        <button className="dash-nav-btn dash-nav-logout" onClick={() => navigate('/logout')} title="Sign Out">
+          <span>🚪</span>
+        </button>
+      </nav>
 
       <div className="dash-scroll">
         <main className="dash-main">
 
+          {/* Toast Message */}
+          {toastMessage && (
+            <div className="alert-error animate-fade-in" style={{ position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, margin: 0, boxShadow: 'var(--elevation-lg)' }}>
+              <span>💡</span> {toastMessage}
+            </div>
+          )}
+
           {/* ── Header ── */}
           <div className="dash-header animate-fade-in">
-            <div className="dash-greeting">
-              <span className="dash-greeting-sub">{getGreeting()} 👋</span>
+            <div>
+              <div className="dash-greeting-sub">{greeting()} 👋</div>
               <h1 className="dash-greeting-name">
-                <span>{user?.username ?? 'Learner'}</span>!
+                {user?.email?.split('@')[0] || 'Learner'}'s Progress
               </h1>
+              <div className="dash-level-badge" data-level={level > 4 ? 'advanced' : level > 2 ? 'intermediate' : 'beginner'}>
+                Level {level} · {title}
+              </div>
             </div>
-
-            <button
-              className="dash-avatar-btn"
-              id="nav-profile-btn"
-              onClick={() => navigate('/logout')}
-              title="Profile / Sign out"
-            >
-              <div className="dash-avatar">
-                {user?.username?.[0]?.toUpperCase() ?? '?'}
-              </div>
-              <span className={`badge badge-${user?.role ?? 'student'}`}>{user?.role}</span>
-            </button>
-          </div>
-
-          {/* ── Streak Card ── */}
-          <div className="streak-card animate-slide-up" style={{ animationDelay: '0.05s' }}>
-            <div className="streak-icon">🔥</div>
-            <div className="streak-body">
-              <div className="streak-label">Current Streak</div>
-              <div className="streak-count">7 days</div>
-              <div className="xp-bar-wrap">
-                <div className="xp-bar">
-                  <div className="xp-bar-fill" />
-                </div>
-                <span className="xp-label">360 / 500 XP</span>
-              </div>
+            <div className="dash-overall-ring">
+              <RadialProgress score={overallMastery / 100} size={88} stroke={7} showPct />
+              <span className="dash-overall-label">Overall Mastery</span>
             </div>
           </div>
 
-          {/* ── Stats Row ── */}
-          <div className="stats-row animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            {[
-              { icon: '📚', value: '12', label: 'Courses', trend: '+2 this week' },
-              { icon: '🏆', value: '94%', label: 'Avg Score', trend: '↑ 3%' },
-            ].map(s => (
-              <div key={s.label} className="stat-card">
-                <div className="stat-icon">{s.icon}</div>
-                <div className="stat-value">{s.value}</div>
-                <div className="stat-label">{s.label}</div>
-                <div className="stat-trend">{s.trend}</div>
+          {/* ── Gamified Stats Grid ── */}
+          <div className="dash-stats-grid animate-slide-up" style={{ animationDelay: '0.02s' }}>
+            {/* Streak Card */}
+            <div className="dash-stat-card">
+              <div className="dash-stat-card-title">Weekly Streak</div>
+              <div className="dash-stat-card-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🔥 {streak} Day{streak !== 1 ? 's' : ''}
               </div>
-            ))}
-          </div>
-
-          {/* ── Continue Learning ── */}
-          <h2 className="section-heading animate-slide-up" style={{ animationDelay: '0.15s' }}>
-            Continue Learning
-          </h2>
-          <div className="lesson-card animate-slide-up" style={{ animationDelay: '0.18s' }}>
-            <div className="lesson-card-header">
-              <span className="lesson-course-badge">Python</span>
-              <span className="lesson-chapter">Chapter 3 · Functions</span>
-            </div>
-            <div className="lesson-title">Defining & Calling Functions</div>
-
-            {/* Code Snippet */}
-            <div className="code-snippet">
-              <div className="code-snippet-bar">
-                <span className="code-dot code-dot-red" />
-                <span className="code-dot code-dot-yellow" />
-                <span className="code-dot code-dot-green" />
-                <span className="code-file-name">lesson.py</span>
-              </div>
-              <div className="code-body">
-                {CODE_LINES.map((line) => (
-                  <div key={line.ln} className="code-line">
-                    <span className="code-ln">{line.ln}</span>
-                    <span>
-                      {line.tokens.map((tok, i) => (
-                        <span key={i} className={tok.t}>{tok.v}</span>
-                      ))}
-                    </span>
+              <div className="dash-heatmap">
+                {weekly.map((w, idx) => (
+                  <div key={idx} className={`dash-heatmap-day ${w.isActive ? 'active' : ''}`} title={`${w.dayOfWeek}: ${w.isActive ? 'Active' : 'No Activity'}`}>
+                    <span className="dash-heatmap-day-label">{w.dayOfWeek}</span>
+                    <div className="dash-heatmap-dot" />
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Progress */}
-            <div className="lesson-progress-row">
-              <div className="lesson-progress-bar">
-                <div className="lesson-progress-fill" />
+            {/* Daily Goal Card */}
+            <div className="dash-stat-card">
+              <div className="dash-stat-card-title">Daily Progress</div>
+              <div className="dash-stat-card-value">{progressPct}%</div>
+              <div className="dash-goal-progress">
+                <div className="dash-goal-bar">
+                  <div className="dash-goal-fill" style={{ width: `${progressPct}%`, background: 'linear-gradient(90deg, var(--indigo), var(--purple))' }} />
+                </div>
+                <div className="dash-goal-label">{description}</div>
               </div>
-              <span className="lesson-progress-pct">68%</span>
             </div>
 
-            <div className="lesson-card-footer">
-              <button
-                id="btn-continue-lesson"
-                className="btn btn-primary btn-full btn-lg"
-                onClick={() => {}}
-              >
-                Continue →
-              </button>
+            {/* XP Card */}
+            <div className="dash-stat-card">
+              <div className="dash-stat-card-title">XP Progression</div>
+              <div className="dash-stat-card-value">{totalXP} XP</div>
+              <div className="dash-goal-progress">
+                <div className="dash-goal-bar">
+                  <div className="dash-goal-fill" style={{ width: `${(xpInLevel / xpNeeded) * 100}%`, background: 'var(--green)' }} />
+                </div>
+                <div className="dash-goal-label">{xpNeeded - xpInLevel} XP until Level {level + 1}</div>
+              </div>
             </div>
           </div>
 
-          {/* ── Today's Goals ── */}
-          <h2 className="section-heading animate-slide-up" style={{ animationDelay: '0.22s' }}>
-            Today's Goals
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginLeft: '10px' }}>
-              {completedGoals}/{goals.length} done
-            </span>
-          </h2>
-          <div className="goals-list animate-slide-up" style={{ animationDelay: '0.25s' }}>
-            {goals.map(goal => (
-              <div
-                key={goal.id}
-                className={`goal-item ${goal.done ? 'done' : ''}`}
-                onClick={() => toggleGoal(goal.id)}
-                role="checkbox"
-                aria-checked={goal.done}
-                tabIndex={0}
-                onKeyDown={e => e.key === 'Enter' && toggleGoal(goal.id)}
-              >
-                <div className="goal-checkbox">
-                  {goal.done && '✓'}
+          {/* ── Weakest concept CTA ── */}
+          {weakest && (
+            <div className="dash-callout animate-slide-up" style={{ animationDelay: '0.05s' }}>
+              <div className="dash-callout-icon">💡</div>
+              <div className="dash-callout-body">
+                <div className="dash-callout-title">Strengthen: {weakest}</div>
+                <div className="dash-callout-sub">
+                  Your current mastery is {getMasteryScore(weakest)}%. Let's review loop types or complete a practice quiz!
                 </div>
-                <div className="goal-text-wrap">
-                  <div className="goal-title">{goal.title}</div>
-                  <div className="goal-sub">{goal.sub}</div>
-                </div>
-                <span className="goal-xp">{goal.xp}</span>
               </div>
-            ))}
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => navigate(`/quiz/${encodeURIComponent(weakest)}`)}
+                id="btn-practice-weakest"
+              >
+                Practice →
+              </button>
+            </div>
+          )}
+
+          {/* ── Interactive Concept Skill Tree ── */}
+          <h2 className="dash-section-title animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            Concept Skill Path
+          </h2>
+          
+          <div className="dash-skill-tree animate-slide-up" style={{ animationDelay: '0.12s' }}>
+            {TIERS.map((tier) => {
+              const isLocked = getTierLockStatus(tier.id)
+              return (
+                <div key={tier.id} className="skill-tier" style={{ opacity: isLocked ? 0.6 : 1 }}>
+                  <div className="skill-tier-header">
+                    <span>{isLocked ? '🔒' : '🔑'}</span>
+                    <span>{tier.name}</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '-8px' }}>{tier.description}</p>
+                  
+                  <div className="skill-nodes-grid">
+                    {tier.concepts.map((concept) => {
+                      const score = getMasteryScore(concept)
+                      const rawScore = score / 100
+                      const sparkData = sparklineData(concept)
+                      const isNodeWeak = rawScore < 0.4 && !isLocked
+                      const isNodeStrong = rawScore >= 0.7 && !isLocked
+                      
+                      return (
+                        <div
+                          key={concept}
+                          className={`skill-node ${isLocked ? 'node-locked' : ''} ${isNodeWeak ? 'node-weak' : ''} ${isNodeStrong ? 'node-strong' : ''}`}
+                          onClick={() => showNodeMessage(concept, isLocked)}
+                        >
+                          {/* Color-blindness status indicators */}
+                          {!isLocked && (
+                            <span className={`node-status-badge ${isNodeStrong ? 'status-strong' : isNodeWeak ? 'status-weak' : 'status-amber'}`}>
+                              {isNodeStrong ? '✓' : isNodeWeak ? '!' : '?'}
+                            </span>
+                          )}
+
+                          <RadialProgress score={isLocked ? 0 : rawScore} size={52} stroke={4} showPct={!isLocked} />
+                          
+                          <div className="dash-mastery-card-info" style={{ flex: 1 }}>
+                            <div className="dash-mastery-card-name" style={{ fontSize: '0.9rem', fontWeight: '700' }}>
+                              {CONCEPT_EMOJI[concept]} {concept}
+                            </div>
+                            
+                            {!isLocked && !eventsLoading && (
+                              <div className="dash-mastery-card-trend" style={{ marginTop: '4px' }}>
+                                <Sparkline
+                                  data={sparkData.length ? sparkData : [rawScore * 0.6, rawScore * 0.8, rawScore]}
+                                  width={60}
+                                  height={16}
+                                  color={isNodeStrong ? 'var(--green)' : rawScore >= 0.4 ? 'var(--cyan)' : 'var(--orange)'}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ── Recent quiz history ── */}
+          {events.length > 0 && (
+            <>
+              <h2 className="dash-section-title animate-slide-up" style={{ animationDelay: '0.2s' }}>
+                Recent Activity
+              </h2>
+              <div className="dash-events animate-slide-up" style={{ animationDelay: '0.22s' }}>
+                {events.slice(-8).reverse().map((e) => {
+                  const pct = Math.round(parseFloat(e.score || 0) * 100)
+                  return (
+                    <div key={e.id} className="dash-event-row">
+                      <span className="dash-event-concept">
+                        {CONCEPT_EMOJI[e.concept_name] || '📝'} {e.concept_name}
+                      </span>
+                      <div className="dash-event-score-bar">
+                        <div
+                          className="dash-event-score-fill"
+                          style={{ width: `${pct}%`, background: pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--cyan)' : 'var(--orange)' }}
+                        />
+                      </div>
+                      <span className="dash-event-pct">{pct}%</span>
+                      <span className="dash-event-date">
+                        {new Date(e.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {/* ── Quick actions ── */}
+          <div className="dash-actions animate-slide-up" style={{ animationDelay: '0.28s' }}>
+            <button className="btn btn-primary" onClick={() => navigate('/chat')} id="btn-open-tutor">
+              💬 Ask AI Tutor
+            </button>
           </div>
 
         </main>
@@ -183,3 +442,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+

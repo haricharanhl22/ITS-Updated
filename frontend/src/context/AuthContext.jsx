@@ -1,54 +1,47 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { apiLogout } from '../api/auth'
+import { supabase } from '../api/supabaseClient'
 
 const AuthContext = createContext(null)
 
-const TOKEN_KEY = 'hcai_token'
-const USER_KEY  = 'hcai_user'
-
 export function AuthProvider({ children }) {
   const [state, setState] = useState({
-    token: null,
+    session: null,
     user: null,
     isAuthenticated: false,
     isLoading: true,
   })
 
-  // Restore session from localStorage on mount
   useEffect(() => {
-    const savedToken = localStorage.getItem(TOKEN_KEY)
-    const savedUser  = localStorage.getItem(USER_KEY)
-    if (savedToken && savedUser) {
-      try {
-        const user = JSON.parse(savedUser)
-        setState({ token: savedToken, user, isAuthenticated: true, isLoading: false })
-      } catch {
-        localStorage.removeItem(TOKEN_KEY)
-        localStorage.removeItem(USER_KEY)
-        setState(s => ({ ...s, isLoading: false }))
-      }
-    } else {
-      setState(s => ({ ...s, isLoading: false }))
-    }
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setState({
+        session,
+        user: session?.user ?? null,
+        isAuthenticated: !!session,
+        isLoading: false,
+      })
+    })
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setState({
+        session,
+        user: session?.user ?? null,
+        isAuthenticated: !!session,
+        isLoading: false,
+      })
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
-  const login = (token, user) => {
-    localStorage.setItem(TOKEN_KEY, token)
-    localStorage.setItem(USER_KEY, JSON.stringify(user))
-    setState({ token, user, isAuthenticated: true, isLoading: false })
-  }
-
   const logout = async () => {
-    if (state.token) {
-      try { await apiLogout(state.token) } catch { /* ignore */ }
-    }
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
-    setState({ token: null, user: null, isAuthenticated: false, isLoading: false })
+    await supabase.auth.signOut()
   }
 
+  // Token is available at state.session.access_token
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, token: state.session?.access_token, logout }}>
       {children}
     </AuthContext.Provider>
   )
