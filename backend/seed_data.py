@@ -1,11 +1,11 @@
 """
 backend/seed_data.py
-Seed script — inserts 3 sample assessments with 3 MCQs each into Supabase.
+Seed script — inserts 3 sample assessments with easy + hard MCQs into Supabase.
 
 Concepts seeded:
-  - Variables   (3 questions)
-  - Functions   (3 questions)
-  - Loops       (3 questions)
+  - Variables   (3 easy + 2 hard = 5 questions)
+  - Functions   (3 easy + 2 hard = 5 questions)
+  - Loops       (3 easy + 2 hard = 5 questions)
 
 Usage:
     cd backend
@@ -53,6 +53,7 @@ SEED_DATA = [
         "concept_name": "Variables",
         "title": "Python Variables & Data Types Quiz",
         "questions": [
+            # ── Easy questions ──────────────────────────────────────────
             {
                 "question_text": "Which of the following is a valid variable name in Python?",
                 "option_a": "2myvar",
@@ -60,6 +61,7 @@ SEED_DATA = [
                 "option_c": "my-var",
                 "option_d": "my var",
                 "correct_answer": "B",
+                "difficulty": "easy",
             },
             {
                 "question_text": "What is the data type of the value 3.14 in Python?",
@@ -68,6 +70,7 @@ SEED_DATA = [
                 "option_c": "float",
                 "option_d": "double",
                 "correct_answer": "C",
+                "difficulty": "easy",
             },
             {
                 "question_text": "What does the following code print?\n\nx = 10\ny = x\nx = 20\nprint(y)",
@@ -76,6 +79,26 @@ SEED_DATA = [
                 "option_c": "None",
                 "option_d": "Error",
                 "correct_answer": "B",
+                "difficulty": "easy",
+            },
+            # ── Hard questions ──────────────────────────────────────────
+            {
+                "question_text": "What is the output of the following code?\n\na = [1, 2, 3]\nb = a\nb.append(4)\nprint(len(a))",
+                "option_a": "3",
+                "option_b": "4",
+                "option_c": "Error",
+                "option_d": "None",
+                "correct_answer": "B",
+                "difficulty": "hard",
+            },
+            {
+                "question_text": "Which statement about Python variable scoping is correct?",
+                "option_a": "Variables declared in a function are global by default",
+                "option_b": "The `global` keyword creates a new local variable",
+                "option_c": "A nested function can read but not rebind an enclosing variable without `nonlocal`",
+                "option_d": "Python has block-level scoping like Java or C++",
+                "correct_answer": "C",
+                "difficulty": "hard",
             },
         ],
     },
@@ -83,6 +106,7 @@ SEED_DATA = [
         "concept_name": "Functions",
         "title": "Python Functions Quiz",
         "questions": [
+            # ── Easy questions ──────────────────────────────────────────
             {
                 "question_text": "What keyword is used to define a function in Python?",
                 "option_a": "function",
@@ -90,6 +114,7 @@ SEED_DATA = [
                 "option_c": "def",
                 "option_d": "define",
                 "correct_answer": "C",
+                "difficulty": "easy",
             },
             {
                 "question_text": "What is the output of the following code?\n\ndef greet(name='World'):\n    return f'Hello, {name}!'\n\nprint(greet())",
@@ -98,6 +123,7 @@ SEED_DATA = [
                 "option_c": "Hello, !",
                 "option_d": "Error",
                 "correct_answer": "B",
+                "difficulty": "easy",
             },
             {
                 "question_text": "Which of the following creates a lambda function that squares a number?",
@@ -106,6 +132,26 @@ SEED_DATA = [
                 "option_c": "def square(x): x ** 2",
                 "option_d": "function(x) { return x ** 2; }",
                 "correct_answer": "B",
+                "difficulty": "easy",
+            },
+            # ── Hard questions ──────────────────────────────────────────
+            {
+                "question_text": "What is the output?\n\ndef make_adder(n):\n    def adder(x):\n        return x + n\n    return adder\n\nadd5 = make_adder(5)\nprint(add5(3))",
+                "option_a": "5",
+                "option_b": "3",
+                "option_c": "8",
+                "option_d": "Error — n is not defined",
+                "correct_answer": "C",
+                "difficulty": "hard",
+            },
+            {
+                "question_text": "What happens when a mutable default argument is used?\n\ndef append_to(item, target=[]):\n    target.append(item)\n    return target\n\nprint(append_to(1))\nprint(append_to(2))",
+                "option_a": "[1] then [2]",
+                "option_b": "[1] then [1, 2]",
+                "option_c": "Error on second call",
+                "option_d": "[1, 2] then [1, 2]",
+                "correct_answer": "B",
+                "difficulty": "hard",
             },
         ],
     },
@@ -113,6 +159,7 @@ SEED_DATA = [
         "concept_name": "Loops",
         "title": "Python Loops Quiz",
         "questions": [
+            # ── Easy questions ──────────────────────────────────────────
             {
                 "question_text": "How many times will the following loop execute?\n\nfor i in range(3):\n    print(i)",
                 "option_a": "2",
@@ -120,6 +167,7 @@ SEED_DATA = [
                 "option_c": "3",
                 "option_d": "0",
                 "correct_answer": "C",
+                "difficulty": "easy",
             },
             {
                 "question_text": "Which statement immediately exits a loop in Python?",
@@ -128,6 +176,7 @@ SEED_DATA = [
                 "option_c": "continue",
                 "option_d": "break",
                 "correct_answer": "D",
+                "difficulty": "easy",
             },
             {
                 "question_text": "What is the output of the following code?\n\nresult = [x ** 2 for x in range(4)]\nprint(result)",
@@ -136,6 +185,26 @@ SEED_DATA = [
                 "option_c": "[0, 1, 2, 3]",
                 "option_d": "[0, 2, 4, 6]",
                 "correct_answer": "A",
+                "difficulty": "easy",
+            },
+            # ── Hard questions ──────────────────────────────────────────
+            {
+                "question_text": "What is the output of the following generator-based loop?\n\ndef gen():\n    yield 1\n    yield 2\n    yield 3\n\nresult = sum(x**2 for x in gen())\nprint(result)",
+                "option_a": "6",
+                "option_b": "14",
+                "option_c": "9",
+                "option_d": "36",
+                "correct_answer": "B",
+                "difficulty": "hard",
+            },
+            {
+                "question_text": "What does this nested comprehension produce?\n\nmatrix = [[1,2],[3,4],[5,6]]\nflat = [x for row in matrix for x in row if x % 2 == 0]\nprint(flat)",
+                "option_a": "[2, 4, 6]",
+                "option_b": "[1, 3, 5]",
+                "option_c": "[[2], [4], [6]]",
+                "option_d": "[2, 6]",
+                "correct_answer": "A",
+                "difficulty": "hard",
             },
         ],
     },
@@ -146,7 +215,7 @@ SEED_DATA = [
 
 def seed():
     print("=" * 60)
-    print("HCAI-ITS Seed Script — Assessments + Questions")
+    print("HCAI-ITS Seed Script — Assessments + Questions (with Difficulty)")
     print("=" * 60)
     print(f"Supabase URL: {SUPABASE_URL[:40]}...")
     print()
@@ -186,12 +255,17 @@ def seed():
         assessment_id = result.data[0]["id"]
         print(f"[OK] Created '{concept}' assessment (id={assessment_id})")
 
-        # Insert questions
+        # Insert questions (with difficulty and concept_name)
         for i, q in enumerate(questions, 1):
-            q_row = {**q, "assessment_id": assessment_id}
+            q_row = {
+                **q,
+                "assessment_id": assessment_id,
+                "concept_name": concept,
+            }
             q_result = supabase.table("assessment_questions").insert(q_row).execute()
+            difficulty_tag = q.get("difficulty", "easy").upper()
             if q_result.data:
-                print(f"   [OK] Question {i}: {q['question_text'][:60]}...")
+                print(f"   [OK] [{difficulty_tag}] Question {i}: {q['question_text'][:55]}...")
             else:
                 print(f"   [FAIL] Failed to insert question {i} for '{concept}'")
 

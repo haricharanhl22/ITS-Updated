@@ -210,6 +210,11 @@ export default function QuizPage() {
           <h1>{decodedConcept} Quiz</h1>
           <p>Test your Python knowledge</p>
         </div>
+        {currentQ && currentQ.difficulty && (
+          <span className={`quiz-difficulty-badge quiz-difficulty-${currentQ.difficulty}`}>
+            {currentQ.difficulty === 'hard' ? '🔥 Hard' : '📗 Easy'}
+          </span>
+        )}
       </div>
 
       {/* Progress */}
@@ -226,7 +231,14 @@ export default function QuizPage() {
       {/* Question card */}
       {currentQ && (
         <div className="quiz-question-card animate-fade-in">
-          <div className="quiz-q-number">Question {currentIdx + 1}</div>
+          <div className="quiz-q-header">
+            <div className="quiz-q-number">Question {currentIdx + 1}</div>
+            {currentQ.difficulty && (
+              <span className={`quiz-q-difficulty-tag quiz-difficulty-${currentQ.difficulty}`}>
+                {currentQ.difficulty === 'hard' ? 'Hard' : 'Easy'}
+              </span>
+            )}
+          </div>
           <div className="quiz-q-text">{currentQ.text}</div>
 
           <div className="quiz-options">

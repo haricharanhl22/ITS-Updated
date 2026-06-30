@@ -41,6 +41,7 @@ class AssessmentQuestion(BaseModel):
     text: str
     options: list[str]  # exactly 4 options: A, B, C, D
     correct_index: int  # 0-based index of correct option
+    difficulty: str = "easy"  # 'easy' | 'hard'
 
 
 class AssessmentOut(BaseModel):
@@ -58,8 +59,9 @@ class SubmitResponse(BaseModel):
     score: float         # fraction correct, e.g. 0.8
     correct_count: int
     total: int
-    new_mastery: float   # updated EMA mastery (0.0 – 1.0)
+    new_mastery: float   # updated BKU mastery (0.0 – 1.0)
     mastery_delta: float # change in mastery (can be negative)
+    difficulty_served: str = "easy"  # 'easy' | 'hard' — which tier was served
 
 
 # ── Learning Events ───────────────────────────────────────────────────────────
