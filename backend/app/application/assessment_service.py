@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Assessment service — adaptive difficulty + Bayesian Knowledge Update (BKU) scoring.
 
@@ -176,17 +178,22 @@ def submit_assessment(req: SubmitRequest) -> SubmitResponse:
     # Fetch assessment + questions (validates concept exists)
     assessment_row = _get_assessment_row(req.concept)
     assessment_db_id: int = assessment_row["id"]
-    raw_questions = _get_questions(assessment_db_id)
+
+    # ── Fetch current mastery ─────────────────────────────────────────────
+    old_mastery = mastery_repository.get_concept_mastery(req.student_id, req.concept)
+    running_mastery = old_mastery
+
+    # Determine difficulty tier that was served to the student
+    difficulty_filter = _determine_difficulty(old_mastery)
+    raw_questions = _get_questions(assessment_db_id, difficulty=difficulty_filter)
+    if not raw_questions:
+        raw_questions = _get_questions(assessment_db_id)
 
     if not raw_questions:
         raise ValueError(f"No questions found for concept '{req.concept}'")
 
     total = len(raw_questions)
     correct_count = 0
-
-    # ── Fetch current mastery ─────────────────────────────────────────────
-    old_mastery = mastery_repository.get_concept_mastery(req.student_id, req.concept)
-    running_mastery = old_mastery
 
     # Track which difficulty tier was actually served (majority vote)
     difficulty_counts = {"easy": 0, "hard": 0}
@@ -208,11 +215,18 @@ def submit_assessment(req: SubmitRequest) -> SubmitResponse:
         # Apply BKU update for this question
         running_mastery = _compute_bku_update(running_mastery, is_correct, q_difficulty)
 
-    new_mastery = running_mastery
-    quiz_score = correct_count / total if total > 0 else 0.0
-
     # Determine which difficulty was predominantly served
     difficulty_served = "hard" if difficulty_counts.get("hard", 0) >= difficulty_counts.get("easy", 0) else "easy"
+
+    if difficulty_served == "hard" and correct_count == total and total > 0:
+        new_mastery = 1.0
+    elif correct_count == total and total > 0:
+        new_mastery = max(old_mastery, running_mastery)
+    else:
+        new_mastery = running_mastery
+
+    new_mastery = round(max(0.0, min(1.0, new_mastery)), 4)
+    quiz_score = correct_count / total if total > 0 else 0.0
 
     # ── Persist mastery ───────────────────────────────────────────────────
     mastery_repository.upsert_mastery(req.student_id, req.concept, new_mastery)

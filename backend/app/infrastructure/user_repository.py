@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 User repository — backed by Supabase Postgres.
 All user data is stored in the public.users table.
