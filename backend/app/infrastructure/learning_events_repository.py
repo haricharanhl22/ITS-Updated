@@ -18,11 +18,14 @@ def insert_event(
     concept_name: str,
     score: float,
     assessment_id: Optional[int] = None,
+    generated_assessment_id: Optional[int] = None,
 ) -> dict:
     """
     Insert an immutable learning event row.
     Called every time a quiz is submitted — never updated or deleted.
-    assessment_id must be the bigint PK from the assessments table (or None).
+    assessment_id must be the bigint PK from the (static) assessments table, or None.
+    generated_assessment_id must be the bigint PK from generated_assessments (the
+    AI-generated quiz flow), or None. At most one of the two is normally set.
     """
     result = (
         supabase.table("learning_events")
@@ -31,6 +34,7 @@ def insert_event(
             "concept_name": concept_name,
             "score": round(score, 4),
             "assessment_id": assessment_id,
+            "generated_assessment_id": generated_assessment_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
         .execute()

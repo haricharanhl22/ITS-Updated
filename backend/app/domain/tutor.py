@@ -64,6 +64,43 @@ class SubmitResponse(BaseModel):
     difficulty_served: str = "easy"  # 'easy' | 'hard' — which tier was served
 
 
+# ── AI-Generated Quiz (Groq-backed, per-attempt) ──────────────────────────────
+# Same shape as AssessmentQuestion/AssessmentOut/SubmitRequest/SubmitResponse
+# above, extended with the fields a generated-per-attempt quiz needs
+# (assessment_id to grade against, explanation from Groq). The static
+# assessment_* models above are untouched and still used by the old quiz flow.
+
+class GeneratedQuestion(BaseModel):
+    id: int
+    text: str
+    options: list[str]     # exactly 4 options
+    correct_index: int     # 0-based index of correct option
+    difficulty: str         # 'easy' | 'hard' — same tier for every question in the quiz
+    explanation: str        # short explanation of the correct answer, from Groq
+
+
+class GeneratedAssessmentOut(BaseModel):
+    assessment_id: int
+    concept: str
+    difficulty: str
+    questions: list[GeneratedQuestion]
+
+
+class GeneratedSubmitRequest(BaseModel):
+    student_id: int
+    assessment_id: int
+    answers: dict[str, int]  # { "0": 2, "1": 0, ... } question_id -> chosen_index
+
+
+class GeneratedSubmitResponse(BaseModel):
+    score: float
+    correct_count: int
+    total: int
+    new_mastery: float
+    mastery_delta: float
+    difficulty_served: str
+
+
 # ── Learning Events ───────────────────────────────────────────────────────────
 
 class LearningEvent(BaseModel):

@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
 
+    # Adaptive difficulty threshold (shared by the static and AI-generated quiz
+    # systems): mastery < threshold -> easy questions; >= threshold -> hard.
+    mastery_threshold: float = 0.65
+
     # Resend email settings
     resend_api_key: str = ""
 

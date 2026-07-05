@@ -23,6 +23,7 @@ from app.api.ask             import router as ask_router
 from app.api.demo            import router as demo_router
 from app.api.learning_events import router as learning_events_router
 from app.api.admin           import router as admin_router
+from app.api.quiz            import router as quiz_router
 from app.config.settings     import settings
 
 app = FastAPI(
@@ -53,6 +54,7 @@ app.include_router(ask_router)
 app.include_router(demo_router)
 app.include_router(learning_events_router)
 app.include_router(admin_router)
+app.include_router(quiz_router)
 
 
 @app.get("/health")

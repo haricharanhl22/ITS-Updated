@@ -21,6 +21,7 @@ BKU formula (per question):
   wrong:    Δ = loss_rate × mastery       × difficulty_weight
   Clamped to [0.0, 1.0]
 """
+from app.config.settings import settings
 from app.config.supabase_client import supabase
 from app.domain.tutor import AssessmentOut, AssessmentQuestion, SubmitRequest, SubmitResponse
 from app.infrastructure import mastery_repository, learning_events_repository
@@ -30,8 +31,11 @@ from app.infrastructure import mastery_repository, learning_events_repository
 # Map letter answers to 0-based indices for scoring
 _LETTER_TO_INDEX = {"A": 0, "B": 1, "C": 2, "D": 3}
 
-# Mastery threshold: below → easy; at or above → hard
-MASTERY_THRESHOLD = 0.65
+# Mastery threshold: below → easy; at or above → hard.
+# Sourced from settings so it's configurable via .env, and reused as-is by the
+# AI-generated quiz system (app/application/quiz_generation_service.py) so both
+# quiz systems always agree on the same cutoff.
+MASTERY_THRESHOLD = settings.mastery_threshold
 
 # BKU tuning parameters
 GAIN_RATE = 0.15   # conservative gain per correct answer
@@ -107,6 +111,34 @@ def _compute_bku_update(
     else:
         delta = LOSS_RATE * current_mastery * weight
         new_mastery = current_mastery - delta
+
+    return round(max(0.0, min(1.0, new_mastery)), 4)
+
+
+def _finalize_mastery(
+    old_mastery: float,
+    running_mastery: float,
+    correct_count: int,
+    total: int,
+    difficulty_served: str,
+) -> float:
+    """
+    Apply the perfect-score special cases on top of the compounded per-question
+    BKU result (see _compute_bku_update):
+      - a perfect HARD-tier quiz snaps mastery straight to 1.0
+      - a perfect EASY-tier quiz can't decrease mastery, but won't auto-jump to 1.0
+      - otherwise the compounded BKU value is used as-is
+
+    Shared by the static quiz (submit_assessment below) and the AI-generated quiz
+    (app/application/quiz_generation_service.py:submit_quiz) so both quiz systems
+    apply identical mastery math — this is the ONLY place that logic lives.
+    """
+    if difficulty_served == "hard" and correct_count == total and total > 0:
+        new_mastery = 1.0
+    elif correct_count == total and total > 0:
+        new_mastery = max(old_mastery, running_mastery)
+    else:
+        new_mastery = running_mastery
 
     return round(max(0.0, min(1.0, new_mastery)), 4)
 
@@ -218,14 +250,7 @@ def submit_assessment(req: SubmitRequest) -> SubmitResponse:
     # Determine which difficulty was predominantly served
     difficulty_served = "hard" if difficulty_counts.get("hard", 0) >= difficulty_counts.get("easy", 0) else "easy"
 
-    if difficulty_served == "hard" and correct_count == total and total > 0:
-        new_mastery = 1.0
-    elif correct_count == total and total > 0:
-        new_mastery = max(old_mastery, running_mastery)
-    else:
-        new_mastery = running_mastery
-
-    new_mastery = round(max(0.0, min(1.0, new_mastery)), 4)
+    new_mastery = _finalize_mastery(old_mastery, running_mastery, correct_count, total, difficulty_served)
     quiz_score = correct_count / total if total > 0 else 0.0
 
     # ── Persist mastery ───────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useMastery } from '../hooks/useMastery'
@@ -15,6 +15,7 @@ export default function QuizPage() {
   const decodedConcept = decodeURIComponent(concept || '')
 
   const [questions,  setQuestions]  = useState([])
+  const [assessmentId, setAssessmentId] = useState(null)
   const [currentIdx, setCurrentIdx] = useState(0)
   const [answers,    setAnswers]    = useState({})
   const [revealed,   setRevealed]   = useState({})   // {qId → boolean}
@@ -27,18 +28,29 @@ export default function QuizPage() {
 
   const masteryBefore = getMasteryScore(decodedConcept) / 100
 
-  useEffect(() => {
+  // Fetch a freshly AI-generated quiz for this concept (GET /quiz/generate/{concept} —
+  // replaces the old static /assessments/{concept} lookup). Difficulty is picked
+  // server-side from mastery, using the same threshold as before. Every call
+  // generates a brand-new assessment + questions, so this also powers "Retake Quiz".
+  const fetchQuiz = useCallback(() => {
     if (!decodedConcept || !token) return
     setLoading(true)
-    axios.get(`/assessments/${encodeURIComponent(decodedConcept)}`, {
+    setError(null)
+    axios.get(`/quiz/generate/${encodeURIComponent(decodedConcept)}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(r => { setQuestions(r.data.questions); setLoading(false) })
+      .then(r => {
+        setQuestions(r.data.questions)
+        setAssessmentId(r.data.assessment_id)
+        setLoading(false)
+      })
       .catch(err => {
-        setError(err?.response?.data?.detail || err.message || 'Failed to load quiz')
+        setError(err?.response?.data?.detail || err.message || 'Failed to generate quiz')
         setLoading(false)
       })
   }, [decodedConcept, token])
+
+  useEffect(() => { fetchQuiz() }, [fetchQuiz])
 
   const currentQ = questions[currentIdx]
   const totalQ   = questions.length
@@ -83,8 +95,8 @@ export default function QuizPage() {
     setSubmitting(true)
     setError(null)
     try {
-      const { data } = await axios.post('/assessments/submit', {
-        concept:    decodedConcept,
+      const { data } = await axios.post('/quiz/submit', {
+        assessment_id: assessmentId,
         answers,
       }, { headers: { Authorization: `Bearer ${token}` } })
       setResult(data)
@@ -188,7 +200,10 @@ export default function QuizPage() {
           <div className="quiz-result-actions">
             <button id="btn-back-to-chat" className="btn btn-primary" onClick={() => navigate('/chat')}>← Back to Chat</button>
             <button id="btn-retake-quiz"  className="btn btn-outline" onClick={() => {
+              // A fresh attempt gets a brand-new AI-generated quiz, not a replay
+              // of the same 5 questions.
               setAnswers({}); setRevealed({}); setCurrentIdx(0); setSubmitted(false); setResult(null)
+              fetchQuiz()
             }}>Retake Quiz</button>
             <button className="btn btn-ghost btn-sm" onClick={() => navigate('/dashboard')}>Dashboard</button>
           </div>
@@ -272,7 +287,7 @@ export default function QuizPage() {
                 {ans === currentQ.correct_index ? '✅ Correct!' : `❌ Incorrect — the correct answer is ${String.fromCharCode(65 + currentQ.correct_index)}`}
               </div>
               <div className="quiz-explanation-card animate-fade-in" style={{ padding: '12px 16px', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '0.82rem', lineHeight: '1.5', color: 'var(--text-subtle)' }}>
-                <strong>Constructive explanation:</strong> Option {String.fromCharCode(65 + currentQ.correct_index)} is the correct syntax for Python {decodedConcept}. In Python, <code>{currentQ.options[currentQ.correct_index]}</code> represents the standard, idiomatic approach to solve this problem, aligning with pep8 and best practices.
+                <strong>Explanation:</strong> {currentQ.explanation}
               </div>
             </>
           )}
