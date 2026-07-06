@@ -43,6 +43,7 @@ def _row_to_user(row: dict) -> User:
         role=row["role"],
         is_active=row.get("is_active", True),
         is_verified=row.get("is_verified", False),
+        auth_user_id=row.get("auth_user_id"),
     )
 
 
@@ -72,7 +73,35 @@ def get_user_by_email(email: str) -> User | None:
     return None
 
 
-def create_user(username: str, email: str, password: str, role: str = "student") -> User:
+def get_user_by_auth_id(auth_user_id: str) -> User | None:
+    """Look up a user by their linked Supabase Auth user id (stable, never reused)."""
+    result = (
+        supabase.table("users")
+        .select("*")
+        .eq("auth_user_id", auth_user_id)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        return _row_to_user(result.data[0])
+    return None
+
+
+def set_auth_user_id(user_id: int, auth_user_id: str) -> None:
+    """Link an existing users row to a Supabase Auth user id (one-time backfill)."""
+    supabase.table("users").update({"auth_user_id": auth_user_id}).eq("id", user_id).execute()
+
+
+def delete_user(user_id: int) -> None:
+    """
+    Delete a users row. student_mastery/learning_events/generated_assessments/
+    messages all reference users(id) with ON DELETE CASCADE, so this also wipes
+    that user's history.
+    """
+    supabase.table("users").delete().eq("id", user_id).execute()
+
+
+def create_user(username: str, email: str, password: str, role: str = "student", auth_user_id: str | None = None) -> User:
     # Check for duplicates before inserting
     if get_user_by_username(username):
         raise ValueError(f"Username '{username}' already exists")
@@ -80,16 +109,20 @@ def create_user(username: str, email: str, password: str, role: str = "student")
         raise ValueError(f"Email '{email}' already registered")
 
     hashed = _hash_password(password)
+    row = {
+        "username": username,
+        "email": email,
+        "hashed_password": hashed,
+        "role": role,
+        "is_active": True,
+        "is_verified": False,
+    }
+    if auth_user_id is not None:
+        row["auth_user_id"] = auth_user_id
+
     result = (
         supabase.table("users")
-        .insert({
-            "username": username,
-            "email": email,
-            "hashed_password": hashed,
-            "role": role,
-            "is_active": True,
-            "is_verified": False,
-        })
+        .insert(row)
         .execute()
     )
     return _row_to_user(result.data[0])

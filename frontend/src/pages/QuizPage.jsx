@@ -10,7 +10,7 @@ export default function QuizPage() {
   const { concept }   = useParams()
   const navigate      = useNavigate()
   const { token, user } = useAuth()
-  const { getMasteryScore, refreshMastery } = useMastery()
+  const { refreshMastery } = useMastery()
 
   const decodedConcept = decodeURIComponent(concept || '')
 
@@ -19,14 +19,14 @@ export default function QuizPage() {
   const [currentIdx, setCurrentIdx] = useState(0)
   const [answers,    setAnswers]    = useState({})
   const [revealed,   setRevealed]   = useState({})   // {qId → boolean}
+  const [hintVisible, setHintVisible] = useState({}) // {qId → boolean} — freely toggleable
+  const [hintUsed,    setHintUsed]    = useState({}) // {qId → boolean} — permanent once true, for this attempt
   const [submitted,  setSubmitted]  = useState(false)
   const [result,     setResult]     = useState(null)
   const [loading,    setLoading]    = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState(null)
   const [animationClass, setAnimationClass] = useState('')
-
-  const masteryBefore = getMasteryScore(decodedConcept) / 100
 
   // Fetch a freshly AI-generated quiz for this concept (GET /quiz/generate/{concept} —
   // replaces the old static /assessments/{concept} lookup). Difficulty is picked
@@ -73,6 +73,19 @@ export default function QuizPage() {
     }, 800)
   }
 
+  // Toggling a hint open marks it "used" permanently for this question in this
+  // attempt (closing it again does not un-record that usage) — this is what
+  // gets sent to /quiz/submit and drives the discounted mastery gain.
+  const toggleHint = () => {
+    if (!currentQ || revealed[String(currentQ.id)]) return
+    const qId = String(currentQ.id)
+    setHintVisible(prev => {
+      const next = !prev[qId]
+      if (next) setHintUsed(u => ({ ...u, [qId]: true }))
+      return { ...prev, [qId]: next }
+    })
+  }
+
   // Keyboard navigation for options (1, 2, 3, 4 keys)
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -98,6 +111,7 @@ export default function QuizPage() {
       const { data } = await axios.post('/quiz/submit', {
         assessment_id: assessmentId,
         answers,
+        hints_used: hintUsed,
       }, { headers: { Authorization: `Bearer ${token}` } })
       setResult(data)
       setSubmitted(true)
@@ -136,6 +150,11 @@ export default function QuizPage() {
     const scorePct   = Math.round(result.score * 100)
     const newMastery = Math.round(result.new_mastery * 100)
     const deltaPct   = Math.round(result.mastery_delta * 100)
+    // Derived from the backend response itself (new_mastery - mastery_delta),
+    // not the live useMastery() cache — that cache gets overwritten by the
+    // refreshMastery() call in handleSubmit before this screen renders, which
+    // would otherwise make "before" equal "after".
+    const masteryBeforePct = newMastery - deltaPct
     const isUp       = deltaPct >= 0
     const emoji      = scorePct >= 80 ? '🏆' : scorePct >= 60 ? '✅' : scorePct >= 40 ? '📚' : '💪'
     const xpGained   = Math.round(result.score * 100)
@@ -171,6 +190,7 @@ export default function QuizPage() {
             {[
               { k: 'Concept',          v: decodedConcept },
               { k: 'Correct answers',  v: `${result.correct_count} / ${result.total}` },
+              { k: 'Hints used',       v: `${result.hints_used_count || 0} / ${result.total}` },
               { k: 'XP Earned',        v: `+${xpGained} XP` },
             ].map(({ k, v }) => (
               <div key={k} className="quiz-result-row">
@@ -181,7 +201,7 @@ export default function QuizPage() {
             <div className="quiz-result-row">
               <span className="quiz-result-key">Mastery update</span>
               <div className="quiz-mastery-transition">
-                <span className="quiz-mastery-from">{Math.round(masteryBefore * 100)}%</span>
+                <span className="quiz-mastery-from">{masteryBeforePct}%</span>
                 <span className="quiz-mastery-arrow">→</span>
                 <span className="quiz-mastery-to" style={{ color: isUp ? 'var(--green)' : 'var(--orange)' }}>
                   {newMastery}%
@@ -202,7 +222,7 @@ export default function QuizPage() {
             <button id="btn-retake-quiz"  className="btn btn-outline" onClick={() => {
               // A fresh attempt gets a brand-new AI-generated quiz, not a replay
               // of the same 5 questions.
-              setAnswers({}); setRevealed({}); setCurrentIdx(0); setSubmitted(false); setResult(null)
+              setAnswers({}); setRevealed({}); setHintVisible({}); setHintUsed({}); setCurrentIdx(0); setSubmitted(false); setResult(null)
               fetchQuiz()
             }}>Retake Quiz</button>
             <button className="btn btn-ghost btn-sm" onClick={() => navigate('/dashboard')}>Dashboard</button>
@@ -255,6 +275,24 @@ export default function QuizPage() {
             )}
           </div>
           <div className="quiz-q-text">{currentQ.text}</div>
+
+          {!isRevealed && currentQ.hint && (
+            <div className="quiz-hint-row">
+              <button
+                type="button"
+                id="btn-quiz-hint-toggle"
+                className="btn btn-ghost btn-sm quiz-hint-toggle"
+                onClick={toggleHint}
+              >
+                {hintVisible[qId] ? '🙈 Hide Hint' : '💡 Show Hint'}
+              </button>
+              {hintVisible[qId] && (
+                <div className="quiz-hint-card animate-fade-in" style={{ padding: '10px 14px', background: 'var(--bg-surface-2)', border: '1px dashed var(--border)', borderRadius: '12px', fontSize: '0.82rem', lineHeight: '1.5', color: 'var(--text-subtle)' }}>
+                  <strong>Hint:</strong> {currentQ.hint}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="quiz-options">
             {currentQ.options.map((optText, i) => {

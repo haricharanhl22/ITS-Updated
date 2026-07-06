@@ -51,10 +51,10 @@ export default function DashboardPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       setEvents(data)
-    } catch { 
-      setEvents([]) 
-    } finally { 
-      setEventsLoading(false) 
+    } catch {
+      setEvents([])
+    } finally {
+      setEventsLoading(false)
     }
   }, [user?.id, token])
 
@@ -89,11 +89,11 @@ export default function DashboardPage() {
     events.forEach(e => {
       activeDates.add(new Date(e.created_at).toDateString())
     })
-    
+
     try {
       const chatLog = JSON.parse(localStorage.getItem('hcai_chat_activity_log') || '[]')
       chatLog.forEach(dateStr => activeDates.add(new Date(dateStr).toDateString()))
-    } catch (e) {}
+    } catch (e) { }
 
     const uniqueDates = Array.from(activeDates).map(d => new Date(d))
     uniqueDates.sort((a, b) => b - a)
@@ -101,7 +101,7 @@ export default function DashboardPage() {
     let streak = 0
     let today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     let yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
     yesterday.setHours(0, 0, 0, 0)
@@ -124,7 +124,7 @@ export default function DashboardPage() {
         }
       }
     }
-    
+
     // Build weekly activity starting from Monday of this week
     const startOfWeek = new Date()
     const dayOfWeek = startOfWeek.getDay() // 0 = Sun, 1 = Mon, etc.
@@ -154,12 +154,12 @@ export default function DashboardPage() {
     const masteryXP = mastery.filter(m => (m.score || 0) >= 0.7).length * 150
     const questionCount = parseInt(localStorage.getItem('hcai_questions_asked') || '0', 10)
     const chatXP = questionCount * 10
-    
+
     const totalXP = quizXP + masteryXP + chatXP + 100 // +100 base signing up XP
     const level = Math.floor(totalXP / 500) + 1
     const xpInLevel = totalXP % 500
     const xpNeeded = 500
-    
+
     const titles = [
       'Syntax Seeker',
       'Variable Voyager',
@@ -182,7 +182,7 @@ export default function DashboardPage() {
     const todayStr = new Date().toDateString()
     const quizzesToday = events.filter(e => new Date(e.created_at).toDateString() === todayStr).length
     const questionsToday = parseInt(localStorage.getItem(`hcai_questions_today_${todayStr}`) || '0', 10)
-    
+
     // Complete 1 quiz or ask 3 questions
     let progressPct = 0
     if (quizzesToday >= 1) {
@@ -193,8 +193,8 @@ export default function DashboardPage() {
 
     return {
       progressPct,
-      description: quizzesToday >= 1 
-        ? 'Daily goal completed! You solved a Python quiz.' 
+      description: quizzesToday >= 1
+        ? 'Daily goal completed! You solved a Python quiz.'
         : `Daily Goal: Complete 1 quiz or ask 3 questions today. (${questionsToday}/3 questions)`
     }
   }
@@ -204,12 +204,12 @@ export default function DashboardPage() {
   // 4. Lock Status based on Tier Prerequisites
   const getTierLockStatus = (tierId) => {
     if (tierId === 1) return false // Tier 1 always open
-    
+
     const tier1Avg = (getMasteryScore('Variables') + getMasteryScore('Strings') + getMasteryScore('Lists')) / 3
     if (tierId === 2) {
       return tier1Avg < 30 && events.length === 0
     }
-    
+
     const tier2Avg = (getMasteryScore('Loops') + getMasteryScore('Functions') + getMasteryScore('Dictionaries')) / 3
     if (tierId === 3) {
       return tier1Avg < 30 || tier2Avg < 30
@@ -225,6 +225,7 @@ export default function DashboardPage() {
       navigate(`/quiz/${encodeURIComponent(concept)}`)
     }
   }
+
 
   return (
     <div className="dash-page">
@@ -339,7 +340,7 @@ export default function DashboardPage() {
           <h2 className="dash-section-title animate-slide-up" style={{ animationDelay: '0.1s' }}>
             Concept Skill Path
           </h2>
-          
+
           <div className="dash-skill-tree animate-slide-up" style={{ animationDelay: '0.12s' }}>
             {TIERS.map((tier) => {
               const isLocked = getTierLockStatus(tier.id)
@@ -350,7 +351,7 @@ export default function DashboardPage() {
                     <span>{tier.name}</span>
                   </div>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '-8px' }}>{tier.description}</p>
-                  
+
                   <div className="skill-nodes-grid">
                     {tier.concepts.map((concept) => {
                       const score = getMasteryScore(concept)
@@ -358,7 +359,7 @@ export default function DashboardPage() {
                       const sparkData = sparklineData(concept)
                       const isNodeWeak = rawScore < 0.4 && !isLocked
                       const isNodeStrong = rawScore >= 0.7 && !isLocked
-                      
+
                       return (
                         <div
                           key={concept}
@@ -373,12 +374,12 @@ export default function DashboardPage() {
                           )}
 
                           <RadialProgress score={isLocked ? 0 : rawScore} size={52} stroke={4} showPct={!isLocked} />
-                          
+
                           <div className="dash-mastery-card-info" style={{ flex: 1 }}>
                             <div className="dash-mastery-card-name" style={{ fontSize: '0.9rem', fontWeight: '700' }}>
                               {CONCEPT_EMOJI[concept]} {concept}
                             </div>
-                            
+
                             {!isLocked && !eventsLoading && (
                               <div className="dash-mastery-card-trend" style={{ marginTop: '4px' }}>
                                 <Sparkline

@@ -95,6 +95,7 @@ def _compute_bku_update(
     current_mastery: float,
     is_correct: bool,
     difficulty: str,
+    hint_used: bool = False,
 ) -> float:
     """
     Compute the new mastery score after a single question using BKU.
@@ -102,11 +103,17 @@ def _compute_bku_update(
     Correct:  new = mastery + gain_rate × (1 - mastery) × weight
     Wrong:    new = mastery - loss_rate × mastery       × weight
     Clamped to [0.0, 1.0].
+
+    If a hint was used and the answer is correct, the gain is halved — the
+    wrong-answer path is unaffected by hint_used, since a missed answer is
+    scored the same whether or not a hint was available.
     """
     weight = DIFFICULTY_WEIGHTS.get((difficulty, is_correct), 1.0)
 
     if is_correct:
         delta = GAIN_RATE * (1.0 - current_mastery) * weight
+        if hint_used:
+            delta *= 0.5
         new_mastery = current_mastery + delta
     else:
         delta = LOSS_RATE * current_mastery * weight
@@ -121,6 +128,7 @@ def _finalize_mastery(
     correct_count: int,
     total: int,
     difficulty_served: str,
+    any_hint_used: bool = False,
 ) -> float:
     """
     Apply the perfect-score special cases on top of the compounded per-question
@@ -129,11 +137,17 @@ def _finalize_mastery(
       - a perfect EASY-tier quiz can't decrease mastery, but won't auto-jump to 1.0
       - otherwise the compounded BKU value is used as-is
 
+    If any_hint_used is True, both perfect-score bonuses are suppressed —
+    otherwise a hint-assisted perfect run would bypass the per-question
+    discount above entirely — and the plain compounded value is used instead.
+
     Shared by the static quiz (submit_assessment below) and the AI-generated quiz
     (app/application/quiz_generation_service.py:submit_quiz) so both quiz systems
     apply identical mastery math — this is the ONLY place that logic lives.
     """
-    if difficulty_served == "hard" and correct_count == total and total > 0:
+    if any_hint_used:
+        new_mastery = running_mastery
+    elif difficulty_served == "hard" and correct_count == total and total > 0:
         new_mastery = 1.0
     elif correct_count == total and total > 0:
         new_mastery = max(old_mastery, running_mastery)

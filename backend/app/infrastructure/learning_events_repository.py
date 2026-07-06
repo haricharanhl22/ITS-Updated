@@ -19,6 +19,7 @@ def insert_event(
     score: float,
     assessment_id: Optional[int] = None,
     generated_assessment_id: Optional[int] = None,
+    hints_used_count: int = 0,
 ) -> dict:
     """
     Insert an immutable learning event row.
@@ -26,6 +27,8 @@ def insert_event(
     assessment_id must be the bigint PK from the (static) assessments table, or None.
     generated_assessment_id must be the bigint PK from generated_assessments (the
     AI-generated quiz flow), or None. At most one of the two is normally set.
+    hints_used_count is the number of questions in this attempt where the
+    student revealed a hint (always 0 for the static quiz flow, which has no hints).
     """
     result = (
         supabase.table("learning_events")
@@ -35,6 +38,7 @@ def insert_event(
             "score": round(score, 4),
             "assessment_id": assessment_id,
             "generated_assessment_id": generated_assessment_id,
+            "hints_used_count": hints_used_count,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
         .execute()

@@ -8,6 +8,7 @@ import httpx
 import pytest
 from groq import RateLimitError
 
+from app.application.assessment_service import _compute_bku_update, _finalize_mastery
 from app.application.quiz_generation_service import (
     QUESTIONS_PER_DIFFICULTY,
     QuizGenerationError,
@@ -39,6 +40,7 @@ def _valid_quiz_json(n=5, dup_questions=False, dup_options=False):
             "option_d": options[3],
             "correct_answer": "A",
             "explanation": "len() returns the number of items in the list.",
+            "hint": "Think about what built-in function counts elements in a sequence.",
         })
     return json.dumps({"questions": questions})
 
@@ -52,6 +54,7 @@ def _quiz_json_with_texts(question_texts):
             "option_a": "3", "option_b": "2", "option_c": "1", "option_d": "0",
             "correct_answer": "A",
             "explanation": "len() returns the number of items in the list.",
+            "hint": "Think about what built-in function counts elements in a sequence.",
         }
         for text in question_texts
     ]
@@ -112,6 +115,34 @@ class TestValidateAndNormalize:
         with pytest.raises(ValueError, match="duplicate"):
             validate_and_normalize(_valid_quiz_json(dup_questions=True), expected_count=5)
 
+    def test_rejects_missing_hint(self):
+        data = json.loads(_valid_quiz_json())
+        del data["questions"][0]["hint"]
+        with pytest.raises(ValueError, match="missing required fields"):
+            validate_and_normalize(json.dumps(data), expected_count=5)
+
+    def test_rejects_empty_hint(self):
+        data = json.loads(_valid_quiz_json())
+        data["questions"][0]["hint"] = "   "
+        with pytest.raises(ValueError, match="empty"):
+            validate_and_normalize(json.dumps(data), expected_count=5)
+
+    def test_rejects_hint_that_leaks_correct_option_text(self):
+        data = json.loads(_valid_quiz_json())
+        data["questions"][0]["hint"] = "The answer relates to why the result is 3, the length."
+        with pytest.raises(ValueError, match="leaks the correct option"):
+            validate_and_normalize(json.dumps(data), expected_count=5)
+
+    def test_rejects_hint_that_names_the_answer_letter(self):
+        data = json.loads(_valid_quiz_json())
+        data["questions"][0]["hint"] = "Option A is the one you want to pick here."
+        with pytest.raises(ValueError, match="reveals the answer letter"):
+            validate_and_normalize(json.dumps(data), expected_count=5)
+
+    def test_accepts_a_clean_conceptual_hint(self):
+        cleaned = validate_and_normalize(_valid_quiz_json(), expected_count=5)
+        assert cleaned[0]["hint"] == "Think about what built-in function counts elements in a sequence."
+
 
 class TestSubmitQuizReusesExistingMasteryMath:
     """
@@ -162,6 +193,104 @@ class TestSubmitQuizReusesExistingMasteryMath:
         }
         with pytest.raises(ValueError, match="does not belong"):
             submit_quiz(student_id=999, assessment_id=42, answers={"0": 0})
+
+    @patch("app.application.quiz_generation_service.generated_quiz_repository.mark_hints_used")
+    @patch("app.application.quiz_generation_service.learning_events_repository.insert_event")
+    @patch("app.application.quiz_generation_service.mastery_repository.upsert_mastery")
+    @patch("app.application.quiz_generation_service.mastery_repository.get_concept_mastery")
+    @patch("app.application.quiz_generation_service.generated_quiz_repository.get_questions")
+    @patch("app.application.quiz_generation_service.generated_quiz_repository.get_assessment")
+    def test_hinted_correct_answer_gets_discounted_gain_and_no_perfect_snap(
+        self,
+        mock_get_assessment,
+        mock_get_questions,
+        mock_get_concept_mastery,
+        mock_upsert_mastery,
+        mock_insert_event,
+        mock_mark_hints_used,
+    ):
+        # Same perfect hard-quiz setup as above, but the student reveals the
+        # hint on question 0. A perfect hard quiz would normally snap to 1.0 —
+        # using a hint anywhere in the quiz must suppress that and fall back
+        # to the (discounted) compounded value instead.
+        mock_get_assessment.return_value = {
+            "id": 42, "student_id": 7, "concept_name": "Variables", "difficulty": "hard",
+        }
+        mock_get_questions.return_value = [
+            {"id": 101, "correct_answer": "A"},
+            {"id": 102, "correct_answer": "B"},
+        ]
+        mock_get_concept_mastery.return_value = 0.75
+
+        result = submit_quiz(
+            student_id=7, assessment_id=42,
+            answers={"0": 0, "1": 1},
+            hints_used={"0": True},
+        )
+
+        assert result.correct_count == 2
+        assert result.hints_used_count == 1
+        assert result.new_mastery < 1.0   # perfect-score snap must be suppressed
+        mock_mark_hints_used.assert_called_once_with([101])
+        assert mock_insert_event.call_args.kwargs["hints_used_count"] == 1
+
+    @patch("app.application.quiz_generation_service.generated_quiz_repository.mark_hints_used")
+    @patch("app.application.quiz_generation_service.learning_events_repository.insert_event")
+    @patch("app.application.quiz_generation_service.mastery_repository.upsert_mastery")
+    @patch("app.application.quiz_generation_service.mastery_repository.get_concept_mastery")
+    @patch("app.application.quiz_generation_service.generated_quiz_repository.get_questions")
+    @patch("app.application.quiz_generation_service.generated_quiz_repository.get_assessment")
+    def test_hinted_wrong_answer_is_scored_same_as_unhinted_wrong_answer(
+        self,
+        mock_get_assessment,
+        mock_get_questions,
+        mock_get_concept_mastery,
+        mock_upsert_mastery,
+        mock_insert_event,
+        mock_mark_hints_used,
+    ):
+        mock_get_assessment.return_value = {
+            "id": 42, "student_id": 7, "concept_name": "Variables", "difficulty": "easy",
+        }
+        mock_get_questions.return_value = [{"id": 101, "correct_answer": "A"}]
+        mock_get_concept_mastery.return_value = 0.5
+
+        hinted = submit_quiz(student_id=7, assessment_id=42, answers={"0": 1}, hints_used={"0": True})
+
+        mock_get_concept_mastery.return_value = 0.5
+        unhinted = submit_quiz(student_id=7, assessment_id=42, answers={"0": 1}, hints_used={})
+
+        assert hinted.new_mastery == unhinted.new_mastery
+        assert hinted.hints_used_count == 1
+        assert unhinted.hints_used_count == 0
+
+
+class TestBKUHintDiscount:
+    """Unit tests for the shared hint-aware BKU math in assessment_service.py."""
+
+    def test_correct_with_hint_gains_half_of_normal_delta(self):
+        no_hint = _compute_bku_update(0.5, is_correct=True, difficulty="easy", hint_used=False)
+        with_hint = _compute_bku_update(0.5, is_correct=True, difficulty="easy", hint_used=True)
+        assert with_hint - 0.5 == pytest.approx((no_hint - 0.5) * 0.5)
+
+    def test_wrong_with_hint_is_unaffected(self):
+        no_hint = _compute_bku_update(0.5, is_correct=False, difficulty="easy", hint_used=False)
+        with_hint = _compute_bku_update(0.5, is_correct=False, difficulty="easy", hint_used=True)
+        assert no_hint == with_hint
+
+    def test_any_hint_used_suppresses_hard_perfect_snap(self):
+        result = _finalize_mastery(0.75, 0.82, correct_count=2, total=2, difficulty_served="hard", any_hint_used=True)
+        assert result == 0.82
+        assert result != 1.0
+
+    def test_any_hint_used_suppresses_easy_perfect_floor(self):
+        result = _finalize_mastery(0.5, 0.45, correct_count=3, total=3, difficulty_served="easy", any_hint_used=True)
+        # Without hints this would floor at max(old, running) == 0.5; with a
+        # hint used, the plain compounded value is kept instead.
+        assert result == 0.45
+
+    def test_no_hint_used_keeps_existing_perfect_score_behaviour(self):
+        assert _finalize_mastery(0.75, 0.82, correct_count=2, total=2, difficulty_served="hard") == 1.0
 
 
 class TestExtractRetryAfterSeconds:

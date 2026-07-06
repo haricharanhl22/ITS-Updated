@@ -250,6 +250,50 @@
   filter: brightness(1.2);
 }
 
+/* ── Verify email panel ── */
+.verify-email-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.verify-email-icon {
+  font-size: 44px;
+  margin-bottom: 8px;
+}
+.verify-email-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0;
+}
+.verify-email-text {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 4px 0 8px;
+}
+.verify-email-text strong { color: var(--text); }
+.verify-email-resend-msg {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--green-subtle);
+  border: 1px solid rgba(34,197,94,0.25);
+  border-radius: var(--r-md);
+  color: var(--green);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.verify-email-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+}
+
 /* ── Footer note ── */
 .login-footer-note {
   text-align: center;

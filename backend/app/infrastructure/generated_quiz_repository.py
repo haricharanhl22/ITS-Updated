@@ -50,6 +50,7 @@ def insert_questions(assessment_id: int, questions: list[dict]) -> list[dict]:
             "option_d": q["option_d"],
             "correct_answer": q["correct_answer"],
             "explanation": q["explanation"],
+            "hint": q["hint"],
         }
         for q in questions
     ]
@@ -73,12 +74,23 @@ def get_questions(assessment_id: int) -> list[dict]:
     """Return all questions for a generated assessment, in insertion (id) order."""
     result = (
         supabase.table(QUESTIONS_TABLE)
-        .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation")
+        .select("id, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation, hint")
         .eq("assessment_id", assessment_id)
         .order("id")
         .execute()
     )
     return result.data or []
+
+
+def mark_hints_used(row_ids: list[int]) -> None:
+    """
+    Flip hint_used = true for the given generated_questions row ids. Called
+    once per submit_quiz(), for exactly the questions the student actually
+    revealed a hint on in this attempt. No-op if the list is empty.
+    """
+    if not row_ids:
+        return
+    supabase.table(QUESTIONS_TABLE).update({"hint_used": True}).in_("id", row_ids).execute()
 
 
 def get_previous_question_texts(

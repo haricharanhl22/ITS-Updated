@@ -46,20 +46,45 @@ def get_current_student(authorization: str = Header(...)) -> str:
         res = supabase.auth.get_user(token)
         if res and res.user:
             email = res.user.email
+            auth_id = res.user.id
             if email:
-                from app.infrastructure.user_repository import get_user_by_email, create_user, get_user_by_username, mark_user_verified
-                db_user = get_user_by_email(email)
+                from app.infrastructure.user_repository import (
+                    get_user_by_auth_id, get_user_by_email, get_user_by_username,
+                    create_user, set_auth_user_id, delete_user, mark_user_verified,
+                )
+                # Resolve identity by the stable Supabase Auth id first — email
+                # alone is not a safe key, since deleting a Supabase Auth user
+                # and re-registering with the same email issues a brand-new
+                # auth id but would otherwise still match the OLD `users` row
+                # by email, silently resurrecting its old mastery/history onto
+                # what should be a fresh account.
+                db_user = get_user_by_auth_id(auth_id)
                 if not db_user:
-                    username = email.split("@")[0]
-                    if get_user_by_username(username):
-                        username = f"{username}_{res.user.id[:8]}"
-                    db_user = create_user(
-                        username=username,
-                        email=email,
-                        password="",
-                        role="student",
-                    )
-                    mark_user_verified(email)
+                    existing_by_email = get_user_by_email(email)
+                    if existing_by_email and not existing_by_email.auth_user_id:
+                        # Legacy row created before this linkage existed —
+                        # adopt it once, preserving its history.
+                        set_auth_user_id(existing_by_email.id, auth_id)
+                        db_user = existing_by_email
+                    elif existing_by_email:
+                        # This email belonged to a DIFFERENT, now-superseded
+                        # Supabase Auth account. Treat this as a genuinely new
+                        # signup: drop the stale row (cascades to wipe its
+                        # mastery/events/etc.) and create a fresh one.
+                        delete_user(existing_by_email.id)
+
+                    if not db_user:
+                        username = email.split("@")[0]
+                        if get_user_by_username(username):
+                            username = f"{username}_{auth_id[:8]}"
+                        db_user = create_user(
+                            username=username,
+                            email=email,
+                            password="",
+                            role="student",
+                            auth_user_id=auth_id,
+                        )
+                        mark_user_verified(email)
                 return str(db_user.id)
             return str(res.user.id)
     except Exception as e:

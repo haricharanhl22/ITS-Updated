@@ -1,12 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../api/supabaseClient'
+import { useAuth } from '../context/AuthContext'
 import './LoginPage.css'
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const from = location.state?.from?.pathname ?? '/dashboard'
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+
+  // If a session is already active (e.g. left over from a previous account),
+  // bounce straight to the app instead of letting the user sit on the
+  // login/register screen while secretly still authenticated as someone
+  // else — registering a "new" account without logging out first would
+  // otherwise leave the old session untouched and just show the old
+  // account's data.
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) navigate(from, { replace: true })
+  }, [isAuthenticated, authLoading, from, navigate])
 
   const [tab, setTab] = useState('login')
   const [loading, setLoading] = useState(false)
@@ -19,6 +31,13 @@ export default function LoginPage() {
   // Register form state
   const [regForm, setRegForm] = useState({ email: '', password: '', confirm: '' })
 
+  // Set once a registration succeeds but Supabase requires email confirmation
+  // (i.e. signUp() returned no session) — swaps the card to a "check your
+  // inbox" screen instead of silently navigating with no active session.
+  const [registrationSent, setRegistrationSent] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [resendMsg, setResendMsg] = useState('')
+
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
@@ -28,6 +47,9 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
+      // Clear any existing session first — avoids ever mixing sessions if a
+      // stale one from a previous account was still active in this browser.
+      await supabase.auth.signOut()
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: loginForm.email,
         password: loginForm.password,
@@ -58,18 +80,47 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      // Clear any existing session first — signUp() does NOT do this on its
+      // own when email confirmation is required (it returns no session and
+      // leaves whatever was already active untouched), which previously let
+      // a stale session from a prior account bleed into a "new" registration.
+      await supabase.auth.signOut()
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: regForm.email,
         password: regForm.password,
       })
       if (signUpError) throw signUpError
-      // For Supabase, if email confirmation is disabled, user is logged in automatically.
-      // If enabled, they will need to check their email. For this patch, we assume success routes to dashboard.
-      navigate(from, { replace: true })
+      if (data.session) {
+        // Email confirmation is disabled on this Supabase project (or the
+        // email was already confirmed) — signUp() logged the user in directly.
+        navigate(from, { replace: true })
+      } else {
+        // Email confirmation is required — there is no session yet, so
+        // navigating would just bounce off a protected route back to /login
+        // with no explanation. Show a "check your inbox" screen instead.
+        setRegistrationSent(true)
+      }
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    setResending(true)
+    setResendMsg('')
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: regForm.email,
+      })
+      if (resendError) throw resendError
+      setResendMsg('Verification email resent — check your inbox.')
+    } catch (err) {
+      setResendMsg(err.message || 'Could not resend the email. Please try again shortly.')
+    } finally {
+      setResending(false)
     }
   }
 
@@ -84,6 +135,44 @@ export default function LoginPage() {
 
       <div className="login-container animate-fade-in-up">
 
+        {registrationSent ? (
+          /* ── Check your inbox ── */
+          <div className="verify-email-panel animate-fade-in">
+            <div className="verify-email-icon">📬</div>
+            <h2 className="verify-email-title">Check your inbox</h2>
+            <p className="verify-email-text">
+              We've sent a confirmation link to <strong>{regForm.email}</strong>.
+              Click the link in that email to activate your account, then come back and sign in.
+            </p>
+            {resendMsg && <div className="verify-email-resend-msg animate-fade-in">{resendMsg}</div>}
+            <div className="verify-email-actions">
+              <button
+                id="btn-resend-verification"
+                type="button"
+                className="btn btn-outline btn-full"
+                onClick={handleResendVerification}
+                disabled={resending}
+              >
+                {resending ? <span className="spinner" style={{ width: 14, height: 14 }} /> : null}
+                {resending ? 'Resending…' : 'Resend email'}
+              </button>
+              <button
+                id="btn-back-to-signin"
+                type="button"
+                className="btn btn-primary btn-full"
+                onClick={() => {
+                  setRegistrationSent(false)
+                  setResendMsg('')
+                  setTab('login')
+                  setError('')
+                }}
+              >
+                Back to Sign In
+              </button>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Tabs */}
         <div className="tab-bar" role="tablist">
           <button
@@ -243,6 +332,8 @@ export default function LoginPage() {
               {loading ? 'Creating account…' : 'Create Account →'}
             </button>
           </form>
+        )}
+        </>
         )}
       </div>
 

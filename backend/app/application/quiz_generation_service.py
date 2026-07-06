@@ -71,7 +71,7 @@ MAX_GENERATION_ATTEMPTS = 3
 # How many of the student's previous same-concept EASY questions to fetch and
 # feed to the HARD-tier prompt as "don't repeat these" context.
 PREVIOUS_QUESTIONS_LOOKBACK = 20
-_REQUIRED_KEYS = {"question", "option_a", "option_b", "option_c", "option_d", "correct_answer", "explanation"}
+_REQUIRED_KEYS = {"question", "option_a", "option_b", "option_c", "option_d", "correct_answer", "explanation", "hint"}
 
 
 class QuizGenerationError(Exception):
@@ -176,11 +176,17 @@ def _build_quiz_prompt(
         "- No two questions may be duplicates or near-duplicates of each other.\n"
         "- Every question must be answerable using ONLY the excerpts above.\n"
         "- Include a short (1-2 sentence) explanation of why the correct answer is correct.\n"
+        "- Include a short (1 sentence) HINT that nudges the student toward the correct "
+        "concept or approach WITHOUT stating or implying the correct option's letter (A/B/C/D) "
+        "or repeating any option's exact text verbatim. Phrase it as a conceptual nudge (e.g. "
+        "reference the relevant rule, keyword, or behavior from the excerpts), not an "
+        "elimination of choices.\n"
         "- Do not leave any field empty.\n\n"
         "Return ONLY valid JSON, with no markdown fences and no commentary, in exactly this "
         "shape:\n"
         '{"questions": [{"question": "...", "option_a": "...", "option_b": "...", '
-        '"option_c": "...", "option_d": "...", "correct_answer": "A", "explanation": "..."}]}'
+        '"option_c": "...", "option_d": "...", "correct_answer": "A", "explanation": "...", '
+        '"hint": "..."}]}'
     )
     user_prompt = f"Generate the {question_count}-question {difficulty} quiz on {concept} now."
     return system_prompt, user_prompt
@@ -279,6 +285,13 @@ def validate_and_normalize(raw: str, expected_count: int) -> list[dict]:
             raise ValueError(f"Question {i} is a duplicate of another question in this quiz")
         seen_question_texts.add(norm_q)
 
+        hint_norm = _normalize(q["hint"])
+        correct_option_text = {"A": q["option_a"], "B": q["option_b"], "C": q["option_c"], "D": q["option_d"]}[correct]
+        if correct_option_text and _normalize(correct_option_text) in hint_norm:
+            raise ValueError(f"Question {i}'s hint leaks the correct option's exact text")
+        if re.search(r"\b(option|answer)\s*[abcd]\b", hint_norm) or "the correct answer is" in hint_norm:
+            raise ValueError(f"Question {i}'s hint reveals the answer letter")
+
         cleaned.append({
             "question_text": q["question"].strip(),
             "option_a": q["option_a"].strip(),
@@ -287,6 +300,7 @@ def validate_and_normalize(raw: str, expected_count: int) -> list[dict]:
             "option_d": q["option_d"].strip(),
             "correct_answer": correct,
             "explanation": q["explanation"].strip(),
+            "hint": q["hint"].strip(),
         })
 
     return cleaned
@@ -391,6 +405,7 @@ async def generate_quiz(student_id: int | str, concept: str) -> GeneratedAssessm
             correct_index=_LETTER_TO_INDEX[row["correct_answer"]],
             difficulty=difficulty,
             explanation=row["explanation"],
+            hint=row["hint"],
         )
         for i, row in enumerate(inserted)
     ]
@@ -403,13 +418,24 @@ async def generate_quiz(student_id: int | str, concept: str) -> GeneratedAssessm
     )
 
 
-def submit_quiz(student_id: int | str, assessment_id: int, answers: dict[str, int]) -> GeneratedSubmitResponse:
+def submit_quiz(
+    student_id: int | str,
+    assessment_id: int,
+    answers: dict[str, int],
+    hints_used: dict[str, bool] | None = None,
+) -> GeneratedSubmitResponse:
     """
     Grade a generated-quiz attempt server-side against the stored correct answers,
     then apply the SAME BKU update + finalize logic as the static quiz
     (assessment_service._compute_bku_update / _finalize_mastery — not reimplemented).
+
+    hints_used is keyed the same way as answers (stringified 0-based question
+    id -> bool). A question answered correctly after its hint was revealed
+    gets a discounted mastery gain, and if any hint was used anywhere in the
+    quiz the perfect-score bonuses in _finalize_mastery are suppressed.
     """
     sid: int = int(student_id)
+    hints_used = hints_used or {}
 
     assessment = generated_quiz_repository.get_assessment(assessment_id)
     if not assessment:
@@ -428,24 +454,34 @@ def submit_quiz(student_id: int | str, assessment_id: int, answers: dict[str, in
     running_mastery = old_mastery
     correct_count = 0
     total = len(rows)
+    hinted_row_ids: list[int] = []
+    hints_used_count = 0
 
     for i, row in enumerate(rows):
         correct_index = _LETTER_TO_INDEX[row["correct_answer"]]
         chosen = answers.get(str(i))
         is_correct = chosen is not None and chosen == correct_index
+        hint_used_this_q = bool(hints_used.get(str(i)))
+        if hint_used_this_q:
+            hints_used_count += 1
+            hinted_row_ids.append(row["id"])
         if is_correct:
             correct_count += 1
-        running_mastery = _compute_bku_update(running_mastery, is_correct, difficulty)
+        running_mastery = _compute_bku_update(running_mastery, is_correct, difficulty, hint_used=hint_used_this_q)
 
-    new_mastery = _finalize_mastery(old_mastery, running_mastery, correct_count, total, difficulty)
+    any_hint_used = hints_used_count > 0
+    new_mastery = _finalize_mastery(old_mastery, running_mastery, correct_count, total, difficulty, any_hint_used=any_hint_used)
     quiz_score = correct_count / total if total > 0 else 0.0
 
     mastery_repository.upsert_mastery(sid, concept, new_mastery)
+    if hinted_row_ids:
+        generated_quiz_repository.mark_hints_used(hinted_row_ids)
     learning_events_repository.insert_event(
         student_id=sid,
         concept_name=concept,
         score=quiz_score,
         generated_assessment_id=assessment_id,
+        hints_used_count=hints_used_count,
     )
 
     return GeneratedSubmitResponse(
@@ -455,4 +491,5 @@ def submit_quiz(student_id: int | str, assessment_id: int, answers: dict[str, in
         new_mastery=new_mastery,
         mastery_delta=round(new_mastery - old_mastery, 4),
         difficulty_served=difficulty,
+        hints_used_count=hints_used_count,
     )

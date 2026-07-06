@@ -149,6 +149,9 @@
   line-height: 1.5;
 }
 
+/* Hint */
+.quiz-hint-row { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 4px; align-items: flex-start; }
+
 /* Options */
 .quiz-options { display: flex; flex-direction: column; gap: 10px; }
 

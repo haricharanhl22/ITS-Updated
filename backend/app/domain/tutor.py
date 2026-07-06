@@ -77,6 +77,7 @@ class GeneratedQuestion(BaseModel):
     correct_index: int     # 0-based index of correct option
     difficulty: str         # 'easy' | 'hard' — same tier for every question in the quiz
     explanation: str        # short explanation of the correct answer, from Groq
+    hint: str                # short conceptual nudge, from Groq, shown on toggle before answering
 
 
 class GeneratedAssessmentOut(BaseModel):
@@ -90,6 +91,7 @@ class GeneratedSubmitRequest(BaseModel):
     student_id: int
     assessment_id: int
     answers: dict[str, int]  # { "0": 2, "1": 0, ... } question_id -> chosen_index
+    hints_used: dict[str, bool] = {}  # { "0": true, ... } question_id -> hint revealed?
 
 
 class GeneratedSubmitResponse(BaseModel):
@@ -99,6 +101,7 @@ class GeneratedSubmitResponse(BaseModel):
     new_mastery: float
     mastery_delta: float
     difficulty_served: str
+    hints_used_count: int = 0
 
 
 # ── Learning Events ───────────────────────────────────────────────────────────

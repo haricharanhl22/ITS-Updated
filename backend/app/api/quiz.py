@@ -27,6 +27,7 @@ router = APIRouter(prefix="/quiz", tags=["quiz"])
 class QuizSubmitBody(BaseModel):
     assessment_id: int
     answers: dict[str, int]   # {"0": 2, "1": 0, ...} — 0-based option index
+    hints_used: dict[str, bool] = {}   # {"0": true, "1": false, ...} — same keying as answers
 
 
 @router.get("/generate/{concept}", response_model=GeneratedAssessmentOut)
@@ -73,6 +74,7 @@ async def submit_quiz(
             student_id=student_id,
             assessment_id=req.assessment_id,
             answers=req.answers,
+            hints_used=req.hints_used,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
