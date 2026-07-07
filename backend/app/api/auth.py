@@ -5,6 +5,7 @@ from app.application.auth_service import (
     authenticate_user,
     get_current_user_from_token,
     register_user,
+    resend_otp,
     verify_otp_and_login,
 )
 from app.schemas.auth import (
@@ -12,6 +13,7 @@ from app.schemas.auth import (
     OtpVerifyRequest,
     RegisterRequest,
     RegisterResponse,
+    ResendOtpRequest,
     TokenResponse,
     UserOut,
 )
@@ -65,6 +67,15 @@ def register(req: RegisterRequest):
 def verify_otp(req: OtpVerifyRequest):
     try:
         return verify_otp_and_login(req)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+# ── Resend OTP → regenerates a code for an unverified account ─────────────
+@router.post("/auth/resend-otp", response_model=RegisterResponse)
+def resend_otp_endpoint(req: ResendOtpRequest):
+    try:
+        return resend_otp(req)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

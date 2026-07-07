@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr
 
 
@@ -7,15 +9,19 @@ class LoginRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    username: str
     email: str
     password: str
+    username: Optional[str] = None
     role: str = "student"
 
 
 class OtpVerifyRequest(BaseModel):
     email: str
     otp: str
+
+
+class ResendOtpRequest(BaseModel):
+    email: str
 
 
 class TokenResponse(BaseModel):

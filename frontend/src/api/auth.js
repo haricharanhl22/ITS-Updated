@@ -7,9 +7,8 @@ export async function apiLogin(username, password) {
   return data
 }
 
-export async function apiRegister(username, email, password, role = 'student') {
+export async function apiRegister(email, password, role = 'student') {
   const { data } = await axios.post(`${API_BASE}/register`, {
-    username,
     email,
     password,
     role,
@@ -20,6 +19,11 @@ export async function apiRegister(username, email, password, role = 'student') {
 export async function apiVerifyOtp(email, otp) {
   const { data } = await axios.post(`${API_BASE}/verify-otp`, { email, otp })
   return data   // TokenResponse
+}
+
+export async function apiResendOtp(email) {
+  const { data } = await axios.post(`${API_BASE}/resend-otp`, { email })
+  return data   // { message, email }
 }
 
 export async function apiMe(token) {

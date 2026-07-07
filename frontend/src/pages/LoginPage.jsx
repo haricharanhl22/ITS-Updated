@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { supabase } from '../api/supabaseClient'
+import { apiLogin, apiRegister, apiResendOtp, apiVerifyOtp } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import './LoginPage.css'
+
+function extractError(err, fallback) {
+  return err?.response?.data?.detail || err.message || fallback
+}
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const from = location.state?.from?.pathname ?? '/dashboard'
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, login } = useAuth()
 
   // If a session is already active (e.g. left over from a previous account),
   // bounce straight to the app instead of letting the user sit on the
@@ -31,12 +35,16 @@ export default function LoginPage() {
   // Register form state
   const [regForm, setRegForm] = useState({ email: '', password: '', confirm: '' })
 
-  // Set once a registration succeeds but Supabase requires email confirmation
-  // (i.e. signUp() returned no session) — swaps the card to a "check your
-  // inbox" screen instead of silently navigating with no active session.
+  // Set once registration succeeds — the backend has emailed a 6-digit OTP,
+  // so the card swaps to an "enter your code" screen instead of navigating
+  // straight in (there's no session yet until the OTP is verified).
   const [registrationSent, setRegistrationSent] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendMsg, setResendMsg] = useState('')
+
+  // OTP verification form state
+  const [otp, setOtp] = useState('')
+  const [verifying, setVerifying] = useState(false)
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -47,17 +55,11 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      // Clear any existing session first — avoids ever mixing sessions if a
-      // stale one from a previous account was still active in this browser.
-      await supabase.auth.signOut()
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: loginForm.email,
-        password: loginForm.password,
-      })
-      if (signInError) throw signInError
+      const { access_token } = await apiLogin(loginForm.email, loginForm.password)
+      await login(access_token)
       navigate(from, { replace: true })
     } catch (err) {
-      setError(err.message || 'Invalid credentials. Please try again.')
+      setError(extractError(err, 'Invalid credentials. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -80,30 +82,35 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      // Clear any existing session first — signUp() does NOT do this on its
-      // own when email confirmation is required (it returns no session and
-      // leaves whatever was already active untouched), which previously let
-      // a stale session from a prior account bleed into a "new" registration.
-      await supabase.auth.signOut()
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: regForm.email,
-        password: regForm.password,
-      })
-      if (signUpError) throw signUpError
-      if (data.session) {
-        // Email confirmation is disabled on this Supabase project (or the
-        // email was already confirmed) — signUp() logged the user in directly.
-        navigate(from, { replace: true })
-      } else {
-        // Email confirmation is required — there is no session yet, so
-        // navigating would just bounce off a protected route back to /login
-        // with no explanation. Show a "check your inbox" screen instead.
-        setRegistrationSent(true)
-      }
+      await apiRegister(regForm.email, regForm.password)
+      // Account is created but unverified — the backend has emailed a
+      // 6-digit OTP. There's no session yet, so show the code-entry screen
+      // instead of navigating.
+      setOtp('')
+      setRegistrationSent(true)
     } catch (err) {
-      setError(err.message || 'Registration failed. Please try again.')
+      setError(extractError(err, 'Registration failed. Please try again.'))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault()
+    setResendMsg('')
+    if (!otp || otp.length !== 6) {
+      setResendMsg('Enter the 6-digit code from your email.')
+      return
+    }
+    setVerifying(true)
+    try {
+      const { access_token } = await apiVerifyOtp(regForm.email, otp)
+      await login(access_token)
+      navigate(from, { replace: true })
+    } catch (err) {
+      setResendMsg(extractError(err, 'Invalid or expired code. Please try again.'))
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -111,14 +118,10 @@ export default function LoginPage() {
     setResending(true)
     setResendMsg('')
     try {
-      const { error: resendError } = await supabase.auth.resend({
-        type: 'signup',
-        email: regForm.email,
-      })
-      if (resendError) throw resendError
-      setResendMsg('Verification email resent — check your inbox.')
+      await apiResendOtp(regForm.email)
+      setResendMsg('A new code has been sent — check your inbox.')
     } catch (err) {
-      setResendMsg(err.message || 'Could not resend the email. Please try again shortly.')
+      setResendMsg(extractError(err, 'Could not resend the code. Please try again shortly.'))
     } finally {
       setResending(false)
     }
@@ -136,40 +139,70 @@ export default function LoginPage() {
       <div className="login-container animate-fade-in-up">
 
         {registrationSent ? (
-          /* ── Check your inbox ── */
+          /* ── Enter OTP ── */
           <div className="verify-email-panel animate-fade-in">
             <div className="verify-email-icon">📬</div>
             <h2 className="verify-email-title">Check your inbox</h2>
             <p className="verify-email-text">
-              We've sent a confirmation link to <strong>{regForm.email}</strong>.
-              Click the link in that email to activate your account, then come back and sign in.
+              We've sent a 6-digit verification code to <strong>{regForm.email}</strong>.
+              Enter it below to activate your account.
             </p>
-            {resendMsg && <div className="verify-email-resend-msg animate-fade-in">{resendMsg}</div>}
-            <div className="verify-email-actions">
-              <button
-                id="btn-resend-verification"
-                type="button"
-                className="btn btn-outline btn-full"
-                onClick={handleResendVerification}
-                disabled={resending}
-              >
-                {resending ? <span className="spinner" style={{ width: 14, height: 14 }} /> : null}
-                {resending ? 'Resending…' : 'Resend email'}
-              </button>
-              <button
-                id="btn-back-to-signin"
-                type="button"
-                className="btn btn-primary btn-full"
-                onClick={() => {
-                  setRegistrationSent(false)
-                  setResendMsg('')
-                  setTab('login')
-                  setError('')
-                }}
-              >
-                Back to Sign In
-              </button>
-            </div>
+
+            <form id="otp-form" onSubmit={handleVerifyOtp} className="auth-form">
+              <div className="form-group">
+                <label className="form-label" htmlFor="otp-input">Verification code</label>
+                <input
+                  id="otp-input"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  className="input-field"
+                  placeholder="123456"
+                  value={otp}
+                  onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  disabled={verifying}
+                />
+              </div>
+
+              {resendMsg && <div className="verify-email-resend-msg animate-fade-in">{resendMsg}</div>}
+
+              <div className="verify-email-actions">
+                <button
+                  id="btn-verify-otp"
+                  type="submit"
+                  className="btn btn-primary btn-full btn-lg btn-submit"
+                  disabled={verifying}
+                >
+                  {verifying ? <span className="spinner" /> : null}
+                  {verifying ? 'Verifying…' : 'Verify & Continue →'}
+                </button>
+                <button
+                  id="btn-resend-verification"
+                  type="button"
+                  className="btn btn-outline btn-full"
+                  onClick={handleResendVerification}
+                  disabled={resending}
+                >
+                  {resending ? <span className="spinner" style={{ width: 14, height: 14 }} /> : null}
+                  {resending ? 'Resending…' : 'Resend code'}
+                </button>
+                <button
+                  id="btn-back-to-signin"
+                  type="button"
+                  className="btn btn-ghost btn-full"
+                  onClick={() => {
+                    setRegistrationSent(false)
+                    setResendMsg('')
+                    setOtp('')
+                    setTab('login')
+                    setError('')
+                  }}
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            </form>
           </div>
         ) : (
         <>

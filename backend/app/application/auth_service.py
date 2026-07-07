@@ -13,7 +13,13 @@ from app.infrastructure.user_repository import (
     mark_user_verified,
     verify_password,
 )
-from app.schemas.auth import LoginRequest, OtpVerifyRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import (
+    LoginRequest,
+    OtpVerifyRequest,
+    RegisterRequest,
+    ResendOtpRequest,
+    TokenResponse,
+)
 
 
 def _create_access_token(data: dict) -> str:
@@ -46,10 +52,22 @@ def authenticate_user(req: LoginRequest) -> TokenResponse:
     )
 
 
+def _derive_unique_username(email: str) -> str:
+    """Build a username from the email's local part, disambiguating on collision."""
+    base = email.split("@")[0] or "user"
+    if not get_user_by_username(base):
+        return base
+    suffix = 1
+    while get_user_by_username(f"{base}{suffix}"):
+        suffix += 1
+    return f"{base}{suffix}"
+
+
 def register_user(req: RegisterRequest) -> dict:
     """Create user (unverified) and send OTP email. Returns email for OTP step."""
+    username = req.username or _derive_unique_username(req.email)
     user = create_user(
-        username=req.username,
+        username=username,
         email=req.email,
         password=req.password,
         role=req.role,
@@ -57,6 +75,19 @@ def register_user(req: RegisterRequest) -> dict:
     otp = create_otp(user.email)
     send_otp_email(user.email, otp)
     return {"message": "OTP sent to your email. Please verify to continue.", "email": user.email}
+
+
+def resend_otp(req: ResendOtpRequest) -> dict:
+    """Regenerate and resend an OTP for an existing, not-yet-verified account."""
+    user = get_user_by_email(req.email)
+    if not user:
+        raise ValueError("No pending registration found for this email")
+    if user.is_verified:
+        raise ValueError("This email is already verified. Please sign in.")
+
+    otp = create_otp(user.email)
+    send_otp_email(user.email, otp)
+    return {"message": "OTP resent to your email.", "email": user.email}
 
 
 def verify_otp_and_login(req: OtpVerifyRequest) -> TokenResponse:

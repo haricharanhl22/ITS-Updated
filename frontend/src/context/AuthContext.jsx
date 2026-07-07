@@ -1,47 +1,51 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../api/supabaseClient'
+import { apiLogout, apiMe } from '../api/auth'
 
 const AuthContext = createContext(null)
 
+const TOKEN_KEY = 'its_token'
+
 export function AuthProvider({ children }) {
   const [state, setState] = useState({
-    session: null,
+    token: localStorage.getItem(TOKEN_KEY),
     user: null,
     isAuthenticated: false,
     isLoading: true,
   })
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setState({
-        session,
-        user: session?.user ?? null,
-        isAuthenticated: !!session,
-        isLoading: false,
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) {
+      setState(s => ({ ...s, isLoading: false }))
+      return
+    }
+    apiMe(token)
+      .then(user => setState({ token, user, isAuthenticated: true, isLoading: false }))
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY)
+        setState({ token: null, user: null, isAuthenticated: false, isLoading: false })
       })
-    })
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setState({
-        session,
-        user: session?.user ?? null,
-        isAuthenticated: !!session,
-        isLoading: false,
-      })
-    })
-
-    return () => subscription.unsubscribe()
   }, [])
 
-  const logout = async () => {
-    await supabase.auth.signOut()
+  // Called after login/verify-otp succeeds with a fresh access token.
+  const login = async (token) => {
+    localStorage.setItem(TOKEN_KEY, token)
+    const user = await apiMe(token)
+    setState({ token, user, isAuthenticated: true, isLoading: false })
+    return user
   }
 
-  // Token is available at state.session.access_token
+  const logout = async () => {
+    const { token } = state
+    localStorage.removeItem(TOKEN_KEY)
+    setState({ token: null, user: null, isAuthenticated: false, isLoading: false })
+    if (token) {
+      try { await apiLogout(token) } catch { /* best-effort */ }
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ ...state, token: state.session?.access_token, logout }}>
+    <AuthContext.Provider value={{ ...state, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
