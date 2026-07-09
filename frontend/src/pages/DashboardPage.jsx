@@ -91,7 +91,7 @@ export default function DashboardPage() {
     })
 
     try {
-      const chatLog = JSON.parse(localStorage.getItem('hcai_chat_activity_log') || '[]')
+      const chatLog = JSON.parse(localStorage.getItem(`hcai_chat_activity_log_${user?.id}`) || '[]')
       chatLog.forEach(dateStr => activeDates.add(new Date(dateStr).toDateString()))
     } catch (e) { }
 
@@ -152,10 +152,10 @@ export default function DashboardPage() {
   const getXPInfo = () => {
     const quizXP = events.reduce((sum, e) => sum + Math.round(parseFloat(e.score || 0) * 100), 0)
     const masteryXP = mastery.filter(m => (m.score || 0) >= 0.7).length * 150
-    const questionCount = parseInt(localStorage.getItem('hcai_questions_asked') || '0', 10)
+    const questionCount = parseInt(localStorage.getItem(`hcai_questions_asked_${user?.id}`) || '0', 10)
     const chatXP = questionCount * 10
 
-    const totalXP = quizXP + masteryXP + chatXP + 100 // +100 base signing up XP
+    const totalXP = quizXP + masteryXP + chatXP
     const level = Math.floor(totalXP / 500) + 1
     const xpInLevel = totalXP % 500
     const xpNeeded = 500
@@ -181,7 +181,7 @@ export default function DashboardPage() {
   const getDailyGoalProgress = () => {
     const todayStr = new Date().toDateString()
     const quizzesToday = events.filter(e => new Date(e.created_at).toDateString() === todayStr).length
-    const questionsToday = parseInt(localStorage.getItem(`hcai_questions_today_${todayStr}`) || '0', 10)
+    const questionsToday = parseInt(localStorage.getItem(`hcai_questions_today_${user?.id}_${todayStr}`) || '0', 10)
 
     // Complete 1 quiz or ask 3 questions
     let progressPct = 0

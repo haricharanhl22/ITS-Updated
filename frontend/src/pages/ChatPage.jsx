@@ -91,17 +91,17 @@ export default function ChatPage() {
 
     // Update LocalStorage stats (XP, active dates, daily goals)
     try {
-      const totalAsked = parseInt(localStorage.getItem('hcai_questions_asked') || '0', 10) + 1
-      localStorage.setItem('hcai_questions_asked', totalAsked.toString())
+      const totalAsked = parseInt(localStorage.getItem(`hcai_questions_asked_${user?.id}`) || '0', 10) + 1
+      localStorage.setItem(`hcai_questions_asked_${user?.id}`, totalAsked.toString())
 
       const todayStr = new Date().toDateString()
-      const askedToday = parseInt(localStorage.getItem(`hcai_questions_today_${todayStr}`) || '0', 10) + 1
-      localStorage.setItem(`hcai_questions_today_${todayStr}`, askedToday.toString())
+      const askedToday = parseInt(localStorage.getItem(`hcai_questions_today_${user?.id}_${todayStr}`) || '0', 10) + 1
+      localStorage.setItem(`hcai_questions_today_${user?.id}_${todayStr}`, askedToday.toString())
 
-      const chatLog = JSON.parse(localStorage.getItem('hcai_chat_activity_log') || '[]')
+      const chatLog = JSON.parse(localStorage.getItem(`hcai_chat_activity_log_${user?.id}`) || '[]')
       if (!chatLog.includes(todayStr)) {
         chatLog.push(todayStr)
-        localStorage.setItem('hcai_chat_activity_log', JSON.stringify(chatLog))
+        localStorage.setItem(`hcai_chat_activity_log_${user?.id}`, JSON.stringify(chatLog))
       }
     } catch (e) {}
 
