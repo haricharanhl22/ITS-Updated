@@ -36,7 +36,7 @@ const TIERS = [
 
 export default function DashboardPage() {
   const { token, user } = useAuth()
-  const { mastery, refreshMastery, getMasteryScore, getWeakestConcept } = useMastery()
+  const { mastery, refreshMastery, getMasteryScore, getWeakestConcept, overallMastery } = useMastery()
   const navigate = useNavigate()
 
   const [events, setEvents] = useState([])
@@ -79,9 +79,8 @@ export default function DashboardPage() {
     return 'Good evening'
   }
 
-  const overallMastery = mastery.length
-    ? Math.round(mastery.reduce((a, m) => a + (m.score || 0), 0) / mastery.length * 100)
-    : 0
+  // overallMastery now comes from GET /mastery/overall (backend), which
+  // averages across the ENTIRE curriculum -- not just attempted concepts.
 
   // 1. Streak Info Calculation
   const getStreakInfo = () => {

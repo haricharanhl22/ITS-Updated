@@ -34,6 +34,13 @@ class MasteryRecord(BaseModel):
     score: float       # 0.0 – 1.0
 
 
+class OverallMasteryOut(BaseModel):
+    overall_mastery: float     # 0.0 – 1.0, across the ENTIRE curriculum
+    weighted: bool              # whether concept weights were applied
+    concepts_attempted: int
+    concepts_total: int
+
+
 # ── Assessment ────────────────────────────────────────────────────────────────
 
 class AssessmentQuestion(BaseModel):
