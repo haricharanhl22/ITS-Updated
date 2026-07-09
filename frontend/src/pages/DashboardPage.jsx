@@ -201,21 +201,8 @@ export default function DashboardPage() {
 
   const { progressPct, description } = getDailyGoalProgress()
 
-  // 4. Lock Status based on Tier Prerequisites
-  const getTierLockStatus = (tierId) => {
-    if (tierId === 1) return false // Tier 1 always open
-
-    const tier1Avg = (getMasteryScore('Variables') + getMasteryScore('Strings') + getMasteryScore('Lists')) / 3
-    if (tierId === 2) {
-      return tier1Avg < 30 && events.length === 0
-    }
-
-    const tier2Avg = (getMasteryScore('Loops') + getMasteryScore('Functions') + getMasteryScore('Dictionaries')) / 3
-    if (tierId === 3) {
-      return tier1Avg < 30 || tier2Avg < 30
-    }
-    return false
-  }
+  // 4. Tier unlocking disabled: every tier is always accessible
+  const getTierLockStatus = () => false
 
   const showNodeMessage = (concept, isLocked) => {
     if (isLocked) {
